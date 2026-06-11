@@ -1,26 +1,515 @@
 @import "tailwindcss";
 
+/* ─────────────────────────────────────────────────────────────
+   STRUCTURA DESIGN TOKENS
+   Tokens are declared in :root and then re-exposed to Tailwind
+   via @theme inline. Edit a value once, both sides update.
+   ───────────────────────────────────────────────────────────── */
+
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* PALETTE. mint + lavender, anchored on warm green */
+  --mint-50: #ecf9f1;
+  --mint-100: #d4f5e2;
+  --mint-200: #b8edce;
+  --mint-300: #8fdcb0;
+  --mint-400: #6ec896;
+  --mint-500: #3a9a6a;
+  --mint-700: #1a5c3a;
+  --mint-900: #0d3320;
+
+  --lavender-100: #f1eaff;
+  --lavender-200: #e8dff5;
+  --lavender-300: #d4c5ed;
+  --lavender-400: #b8a0d8;
+  --lavender-600: #7a5fa6;
+  --lavender-800: #3d2d5c;
+
+  /* SEMANTIC */
+  --color-bg: #c8f0d8;
+  --color-ink: #14241a;
+  --color-ink-muted: #3a5242;
+  --color-ink-subtle: #6c8773;
+  --color-accent: var(--lavender-800);
+  --color-accent-green: var(--mint-700);
+
+  /* GLASS SURFACES */
+  --surface-1: rgba(255, 255, 255, 0.6);
+  --surface-2: rgba(255, 255, 255, 0.4);
+  --surface-3: rgba(255, 255, 255, 0.22);
+  --surface-soft: rgba(255, 255, 255, 0.18);
+  --border-soft: rgba(255, 255, 255, 0.65);
+  --border-ink: rgba(20, 36, 26, 0.08);
+
+  /* RADII */
+  --radius-sm: 8px;
+  --radius: 14px;
+  --radius-lg: 20px;
+  --radius-pill: 9999px;
+
+  /* SHADOWS */
+  --shadow-glass:
+    0 1px 0 rgba(255, 255, 255, 0.6) inset,
+    0 8px 24px -12px rgba(26, 92, 58, 0.18);
+  --shadow-card: 0 12px 32px -16px rgba(26, 92, 58, 0.22);
+  --shadow-btn:
+    0 1px 0 rgba(255, 255, 255, 0.18) inset,
+    0 6px 16px -8px rgba(13, 51, 32, 0.45);
+
+  /* FLUID TYPE. clamp(min, preferred, max).
+     Tuned so 1366px laptop reads comfortably and 4K still feels generous
+     without bloating. */
+  --text-2xs: clamp(11px, 0.35vw + 9px, 13px);
+  --text-xs: clamp(12px, 0.4vw + 10px, 14px);
+  --text-sm: clamp(14px, 0.5vw + 11px, 16px);
+  --text-base: clamp(15px, 0.6vw + 12px, 18px);
+  --text-lg: clamp(18px, 0.9vw + 13px, 24px);
+  --text-xl: clamp(22px, 1.3vw + 14px, 32px);
+  --text-2xl: clamp(28px, 2vw + 14px, 44px);
+  --text-3xl: clamp(36px, 2.8vw + 16px, 64px);
+
+  /* SPACING SCALE */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-12: 56px;
+
+  /* LAYOUT WIDTHS. grow with viewport but cap on huge screens */
+  --sidebar-w: clamp(220px, 16vw, 320px);
+  --rightpanel-w: clamp(200px, 14vw, 280px);
+  --content-max: clamp(640px, 72vw, 1240px);
+  --reading-max: 68ch;
+
+  /* MOTION */
+  --ease-out: cubic-bezier(0.2, 0.7, 0.2, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+
+  color-scheme: light;
 }
 
+/* ─────────────────────────────────────────────────────────────
+   DARK THEME. Set by an inline script before paint via
+   <html data-theme="dark">. Same mint + lavender personality on
+   deep green-black. `--color-white` is remapped so the many
+   bg-white/NN glass fills become dark surfaces automatically;
+   true whites use explicit literals instead of the token.
+   ───────────────────────────────────────────────────────────── */
+[data-theme="dark"] {
+  color-scheme: dark;
+
+  --color-bg: #0d1812;
+  --color-ink: #e6f1e9;
+  --color-ink-muted: #b3c7ba;
+  --color-ink-subtle: #7f947f;
+
+  --color-white: #2a3d31;
+
+  --lavender-100: #2a2440;
+  --lavender-200: #352d52;
+  --lavender-300: #4a3f6e;
+  --lavender-400: #7a68a8;
+  --lavender-600: #a892d6;
+  --lavender-800: #cdbcec;
+
+  --mint-900: #d9f2e3;
+  --mint-700: #8fdcb0;
+
+  /* Pale mint tints used as surface fills (e.g. the user chat bubble)
+     become deep green surfaces so ink-colored text stays readable. */
+  --mint-50: #16281d;
+  --mint-100: #1f3a2a;
+  --mint-200: #284a36;
+
+  --surface-1: rgba(34, 52, 41, 0.6);
+  --surface-2: rgba(40, 60, 48, 0.45);
+  --surface-3: rgba(46, 68, 55, 0.3);
+  --surface-soft: rgba(255, 255, 255, 0.05);
+  --border-soft: rgba(255, 255, 255, 0.12);
+  --border-ink: rgba(255, 255, 255, 0.08);
+
+  --shadow-glass:
+    0 1px 0 rgba(255, 255, 255, 0.06) inset, 0 8px 24px -12px rgba(0, 0, 0, 0.5);
+  --shadow-card: 0 12px 32px -16px rgba(0, 0, 0, 0.55);
+  --shadow-btn:
+    0 1px 0 rgba(255, 255, 255, 0.1) inset, 0 6px 16px -8px rgba(0, 0, 0, 0.6);
+}
+
+[data-theme="dark"] body::before {
+  background:
+    radial-gradient(
+      ellipse 60% 70% at 80% 20%,
+      rgba(86, 64, 138, 0.4) 0%,
+      transparent 60%
+    ),
+    radial-gradient(
+      ellipse 50% 60% at 20% 80%,
+      rgba(36, 84, 56, 0.4) 0%,
+      transparent 55%
+    ),
+    linear-gradient(160deg, #0e1d14 0%, #161226 50%, #0d1d13 100%);
+}
+
+[data-theme="dark"] ::selection {
+  background: var(--lavender-300);
+  color: var(--lavender-800);
+}
+
+[data-theme="dark"] {
+  scrollbar-color: rgba(255, 255, 255, 0.25) transparent;
+}
+[data-theme="dark"] ::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.18);
+}
+[data-theme="dark"] ::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.32);
+}
+
+[data-theme="dark"] kbd {
+  background: rgba(255, 255, 255, 0.08);
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.3);
+}
+
+[data-theme="dark"] .md-body code,
+[data-theme="dark"] .md-body pre {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+[data-theme="dark"] .shimmer {
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.06) 25%,
+    rgba(255, 255, 255, 0.14) 50%,
+    rgba(255, 255, 255, 0.06) 75%
+  );
+  background-size: 200% 100%;
+}
+
+/* ─────────────────────────────────────────────────────────────
+   TAILWIND THEME. map tokens to utility classes
+   e.g. `bg-surface-1`, `text-ink-muted`, `rounded-pill`
+   ───────────────────────────────────────────────────────────── */
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-bg: var(--color-bg);
+  --color-ink: var(--color-ink);
+  --color-ink-muted: var(--color-ink-muted);
+  --color-ink-subtle: var(--color-ink-subtle);
+  --color-accent: var(--color-accent);
+  --color-accent-green: var(--color-accent-green);
+
+  --color-mint-100: var(--mint-100);
+  --color-mint-200: var(--mint-200);
+  --color-mint-300: var(--mint-300);
+  --color-mint-500: var(--mint-500);
+  --color-mint-700: var(--mint-700);
+  --color-mint-900: var(--mint-900);
+
+  --color-lavender-100: var(--lavender-100);
+  --color-lavender-200: var(--lavender-200);
+  --color-lavender-300: var(--lavender-300);
+  --color-lavender-400: var(--lavender-400);
+  --color-lavender-800: var(--lavender-800);
+
+  --color-surface-1: var(--surface-1);
+  --color-surface-2: var(--surface-2);
+  --color-surface-3: var(--surface-3);
+  --color-surface-soft: var(--surface-soft);
+
+  --font-sans: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
+
+  --radius-sm: var(--radius-sm);
+  --radius-md: var(--radius);
+  --radius-lg: var(--radius-lg);
+  --radius-pill: var(--radius-pill);
+
+  --text-2xs: var(--text-2xs);
+  --text-xs: var(--text-xs);
+  --text-sm: var(--text-sm);
+  --text-base: var(--text-base);
+  --text-lg: var(--text-lg);
+  --text-xl: var(--text-xl);
+  --text-2xl: var(--text-2xl);
+  --text-3xl: var(--text-3xl);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+/* ─────────────────────────────────────────────────────────────
+   BASE
+   ───────────────────────────────────────────────────────────── */
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  height: 100%;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--color-bg);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  font-size: var(--text-sm);
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  letter-spacing: -0.005em;
+  position: relative;
+  overflow: hidden auto;
+}
+
+/* Atmospheric gradient. fixed so it covers any viewport.
+   Oversized (inset -12%) so the slow ambient drift never exposes edges. */
+body::before {
+  content: "";
+  position: fixed;
+  inset: -12%;
+  background:
+    radial-gradient(
+      ellipse 60% 70% at 80% 20%,
+      rgba(220, 200, 245, 0.7) 0%,
+      transparent 60%
+    ),
+    radial-gradient(
+      ellipse 50% 60% at 20% 80%,
+      rgba(180, 230, 200, 0.5) 0%,
+      transparent 55%
+    ),
+    linear-gradient(160deg, #c8f2dc 0%, #dcd0f5 50%, #c0ecd4 100%);
+  z-index: -1;
+  pointer-events: none;
+  will-change: transform;
+  animation: bg-drift 26s ease-in-out infinite alternate;
+}
+
+@keyframes bg-drift {
+  from {
+    transform: translate3d(-1.2%, -0.8%, 0) scale(1);
+  }
+  to {
+    transform: translate3d(1.2%, 1.2%, 0) scale(1.04);
+  }
+}
+
+/* Selection */
+::selection {
+  background: var(--lavender-300);
+  color: var(--lavender-800);
+}
+
+/* Focus ring */
+:focus-visible {
+  outline: 2px solid var(--lavender-400);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+/* Scrollbar */
+:root {
+  scrollbar-color: rgba(20, 36, 26, 0.25) transparent;
+}
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(20, 36, 26, 0.22);
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(20, 36, 26, 0.38);
+}
+
+/* Keyboard key chips, used by shortcut hints and the shortcuts sheet */
+kbd {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.5em;
+  padding: 0.1em 0.45em;
+  border-radius: 6px;
+  border: 1px solid var(--border-soft);
+  background: rgba(255, 255, 255, 0.75);
+  box-shadow: 0 1px 0 rgba(20, 36, 26, 0.08);
+  font-family: var(--font-sans);
+  font-size: 0.85em;
+  font-weight: 500;
+  color: var(--color-ink-muted);
+}
+
+/* Reduced motion respect */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    transition-duration: 0.001ms !important;
+  }
+}
+
+/* ─────────────────────────────────────────────────────────────
+   UTILITY COMPONENT CLASSES
+   ───────────────────────────────────────────────────────────── */
+@utility glass {
+  background: var(--surface-1);
+  backdrop-filter: blur(14px) saturate(1.05);
+  -webkit-backdrop-filter: blur(14px) saturate(1.05);
+  border: 1px solid var(--border-soft);
+  box-shadow: var(--shadow-glass);
+}
+
+@utility glass-soft {
+  background: var(--surface-soft);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid var(--border-soft);
+}
+
+@utility pill {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 6px 12px;
+  border-radius: var(--radius-pill);
+  background: var(--surface-2);
+  border: 1px solid var(--border-soft);
+  font-size: var(--text-xs);
+  font-weight: 500;
+  color: var(--color-ink-muted);
+}
+
+/* Skeleton shimmer for loading states */
+@keyframes shimmer-sweep {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+@utility shimmer {
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.4) 25%,
+    rgba(255, 255, 255, 0.75) 50%,
+    rgba(255, 255, 255, 0.4) 75%
+  );
+  background-size: 200% 100%;
+  animation: shimmer-sweep 1.6s linear infinite;
+}
+
+/* Blinking caret appended to streaming AI text */
+@keyframes caret-blink {
+  0%,
+  49% {
+    opacity: 1;
+  }
+  50%,
+  100% {
+    opacity: 0;
+  }
+}
+@utility stream-caret {
+  display: inline-block;
+  width: 2px;
+  height: 1.05em;
+  margin-left: 2px;
+  vertical-align: text-bottom;
+  border-radius: 1px;
+  background: var(--lavender-600);
+  animation: caret-blink 1s steps(1) infinite;
+}
+
+/* Hide scrollbars on horizontal scroll-snap rows */
+@utility hide-scrollbar {
+  scrollbar-width: none;
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+/* Gradient headline treatment for hero and celebration moments */
+@utility text-hero-gradient {
+  background: linear-gradient(
+    120deg,
+    var(--mint-900) 0%,
+    var(--mint-700) 45%,
+    var(--lavender-800) 100%
+  );
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/* ─────────────────────────────────────────────────────────────
+   SESSION UI. Markdown body, KaTeX guards, thinking loader.
+   ───────────────────────────────────────────────────────────── */
+
+.md-body p {
+  margin: 0 0 0.5em;
+}
+.md-body p:last-child {
+  margin-bottom: 0;
+}
+.md-body ul,
+.md-body ol {
+  margin: 0.25em 0 0.5em;
+  padding-left: 1.25em;
+}
+.md-body ul {
+  list-style: disc;
+}
+.md-body ol {
+  list-style: decimal;
+}
+.md-body li {
+  margin: 0.15em 0;
+}
+.md-body code {
+  background: rgba(255, 255, 255, 0.6);
+  border-radius: 4px;
+  padding: 0.1em 0.35em;
+  font-size: 0.9em;
+}
+.md-body pre {
+  background: rgba(255, 255, 255, 0.6);
+  border-radius: var(--radius-sm);
+  padding: var(--space-3);
+  overflow-x: auto;
+  margin: 0.5em 0;
+}
+.md-body pre code {
+  background: none;
+  padding: 0;
+}
+.md-body strong {
+  font-weight: 600;
+}
+.md-body blockquote {
+  border-left: 2px solid var(--lavender-300);
+  padding-left: var(--space-3);
+  color: var(--color-ink-muted);
+}
+
+.katex-display {
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 2px 0;
+}
+
+@keyframes thinking-slide {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(350%);
+  }
+}
+.thinking-bar {
+  animation: thinking-slide 1.4s var(--ease-out) infinite;
 }

@@ -12,6 +12,9 @@
 
 # testing
 /coverage
+/playwright-report
+/test-results
+/playwright/.cache
 
 # next.js
 /.next/
@@ -22,7 +25,14 @@
 
 # misc
 .DS_Store
+Thumbs.db
 *.pem
+
+# editors
+.idea/
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
 
 # debug
 npm-debug.log*
@@ -30,7 +40,7 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
-# env files (can opt-in for committing if needed)
+# env files (covers .env, .env.local, .env.development, .env.production, etc.)
 .env*
 
 # vercel
@@ -39,3 +49,20 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Sentry (added later)
+.sentryclirc
+
+# OS / temp
+*.log
+.cache/
+
+# internal handoff / context docs (not committed)
+HANDOFF.md
+master-context.md
+whats-left.md
+
+# agent tooling (local)
+.claude/
+AGENTS.md
+CLAUDE.md

@@ -1,0 +1,41 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1778908308199,
+      "tag": "0000_foamy_senator_kelly",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1778908308200,
+      "tag": "0001_auth_trigger_and_rls",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1781145653756,
+      "tag": "0002_curly_blonde_phantom",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1781150491820,
+      "tag": "0003_light_metal_master",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1781154130798,
+      "tag": "0004_panoramic_iron_man",
+      "breakpoints": true
+    }
+  ]
+}
