@@ -130,16 +130,27 @@ export function SignInForm({ next }: { next?: string }) {
 
   return (
     <div className="flex flex-col gap-4">
-      <Button
-        type="button"
-        variant="secondary"
-        size="md"
-        onClick={signInWithGoogle}
-        className="w-full"
-      >
-        <GoogleMark />
-        Continue with Google
-      </Button>
+      <div className="relative">
+        <Button
+          type="button"
+          variant="secondary"
+          size="md"
+          onClick={signInWithGoogle}
+          disabled
+          className="w-full"
+        >
+          <GoogleMark />
+          Continue with Google
+        </Button>
+        <div className="pointer-events-none absolute inset-0 flex items-center justify-center rounded-full bg-[color:var(--surface-3)] backdrop-blur-[1px]">
+          <span
+            style={{ color: "#ffffff" }}
+            className="rounded-full bg-[#0d3320] px-3 py-1 font-medium text-[var(--text-xs)] shadow-[var(--shadow-btn)]"
+          >
+            Coming soon
+          </span>
+        </div>
+      </div>
 
       <div className="flex items-center gap-3 tracking-[0.18em] text-[color:var(--color-ink-subtle)] text-[var(--text-2xs)] uppercase">
         <div className="h-px flex-1 bg-[color:var(--border-soft)]" />
