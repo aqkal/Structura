@@ -183,7 +183,7 @@ function AvatarMenu({ user }: { user: NavUser }) {
             id={menuId}
             role="menu"
             aria-label="Account"
-            className="glass absolute right-0 z-[60] mt-2 w-60 origin-top-right rounded-[var(--radius)] p-1.5"
+            className="glass-strong absolute right-0 z-[60] mt-2 w-60 origin-top-right rounded-[var(--radius)] p-1.5"
             variants={scaleIn}
             initial="hidden"
             animate="visible"

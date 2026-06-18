@@ -76,7 +76,7 @@ export function MobileBottomBar() {
   return (
     <nav
       aria-label="Primary"
-      className="glass-soft fixed inset-x-0 bottom-0 z-40 border-t lg:hidden"
+      className="glass-strong fixed inset-x-0 bottom-0 z-40 border-t lg:hidden"
       style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
     >
       <div className="flex h-14 items-stretch">
