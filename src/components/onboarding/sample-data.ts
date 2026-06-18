@@ -1,37 +1,39 @@
-export type SampleKey = "algebra" | "physics" | "essay";
+import type { IntentionKey } from "@/lib/guided";
+
+export type SampleKey = "power" | "ai-inequality" | "thesis";
 
 export type SampleProblem = {
   key: SampleKey;
-  subjectSlug: string;
   subjectLabel: string;
+  intention: IntentionKey;
   title: string;
   problem: string;
 };
 
 export const SAMPLE_PROBLEMS: SampleProblem[] = [
   {
-    key: "algebra",
-    subjectSlug: "algebra",
-    subjectLabel: "Algebra",
-    title: "A quadratic that will not factor",
+    key: "power",
+    subjectLabel: "Dive deep",
+    intention: "dive-deep",
+    title: "The psychology of power",
     problem:
-      "I need to solve 2x^2 - 5x - 3 = 0. I can handle simple equations, but the x^2 term throws me off and I am not sure where to even start.",
+      "How does holding power change the way a person thinks and behaves toward others?",
   },
   {
-    key: "physics",
-    subjectSlug: "physics",
-    subjectLabel: "Physics",
-    title: "Ball thrown straight up",
+    key: "ai-inequality",
+    subjectLabel: "Research question",
+    intention: "research-question",
+    title: "AI and inequality",
     problem:
-      "A ball is thrown straight up at 12 m/s. I have to find how long it takes to come back to my hand, but I always mix up which kinematics equation to use.",
+      "I want to research how AI technologies might widen economic inequality, but my question is still far too broad.",
   },
   {
-    key: "essay",
-    subjectSlug: "other",
-    subjectLabel: "Essay writing",
-    title: "My thesis feels too vague",
+    key: "thesis",
+    subjectLabel: "Strengthen argument",
+    intention: "strengthen-argument",
+    title: "Sharpen a weak thesis",
     problem:
-      "My essay asks whether social media does more harm than good. My thesis right now is 'social media has good and bad sides' and I know it is too vague, but I am stuck on how to sharpen it.",
+      "My essay argues that social media does more harm than good, but my thesis feels vague and I want to make the argument stronger.",
   },
 ];
 

@@ -1,12 +1,3 @@
-/**
- * Friendly copy for Supabase auth errors.
- *
- * Maps the most common raw error messages to calm, human sentences in the
- * app voice. Matching is case-insensitive and substring-based so minor
- * upstream wording changes still match. Unknown errors fall back to the
- * original message untouched.
- */
-
 type Rule = {
   match: RegExp;
   friendly: string | ((match: RegExpMatchArray) => string);
@@ -74,10 +65,6 @@ const rules: Rule[] = [
   },
 ];
 
-/**
- * Returns a calm, friendly version of a Supabase auth error message.
- * Unknown messages pass through unchanged.
- */
 export function friendlyAuthError(message: string | null | undefined): string {
   if (!message) return "Something went wrong. Please try again.";
   for (const rule of rules) {

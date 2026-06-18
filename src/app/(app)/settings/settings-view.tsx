@@ -102,7 +102,7 @@ export function SettingsView({ name, email }: SettingsViewProps) {
           Appearance
         </h2>
         <p className={explainerClass}>
-          Pick a theme, or let Structura follow your device. The choice is
+          Pick a theme, or let Qualia follow your device. The choice is
           remembered on this browser.
         </p>
         <ThemeToggle className="self-start" />
@@ -117,7 +117,7 @@ export function SettingsView({ name, email }: SettingsViewProps) {
           Your data
         </h2>
         <p className={explainerClass}>
-          Download everything Structura stores about you: your profile, every
+          Download everything Qualia stores about you: your profile, every
           guided session with its steps and hints, every chat with its messages,
           and links to your uploaded files. It arrives as a single JSON file.
           File links stay valid for one hour.

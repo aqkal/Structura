@@ -6,11 +6,6 @@ import { db, schema } from "@/lib/db";
 export type ChatRow = typeof schema.chats.$inferSelect;
 export type ChatMessageRow = typeof schema.chatMessages.$inferSelect;
 
-/**
- * Every externally supplied chatId is validated before it reaches a
- * query. A malformed uuid must read as "not found", never as a Postgres
- * cast error bubbling up to the route.
- */
 const uuidSchema = z.string().uuid();
 
 function isUuid(value: string): boolean {
@@ -25,7 +20,7 @@ export async function createChat(
     .insert(schema.chats)
     .values({
       userId,
-      // Let the DB default fill in "New chat" when no title is given.
+
       ...(title !== undefined ? { title } : {}),
     })
     .returning({ id: schema.chats.id });
@@ -73,10 +68,6 @@ export type ChatWithMessages = {
   messages: ChatMessageRow[];
 };
 
-/**
- * Owner-scoped fetch of a chat and its messages in order. Returns null
- * if the chat is missing, not owned by the user, or the id is malformed.
- */
 export async function getChatWithMessages(
   chatId: string,
   userId: string,
@@ -93,11 +84,6 @@ export async function getChatWithMessages(
   return { chat, messages };
 }
 
-/**
- * Append a message and bump the parent chat's updatedAt in one
- * transaction so the chat list ordering stays in sync with the latest
- * activity. Not owner-scoped: callers must verify ownership first.
- */
 export async function appendMessage(
   chatId: string,
   role: "user" | "assistant",
@@ -116,11 +102,6 @@ export async function appendMessage(
   });
 }
 
-/**
- * Owner-scoped rename. Trims and caps the title to 80 characters.
- * Returns false if the chat is not owned by the user or the id is
- * malformed.
- */
 export async function renameChat(
   chatId: string,
   userId: string,
@@ -139,11 +120,6 @@ export async function renameChat(
   return updated.length > 0;
 }
 
-/**
- * Owner-scoped delete. Messages are removed by the foreign-key cascade.
- * Returns false if the chat is not owned by the user or the id is
- * malformed.
- */
 export async function deleteChat(
   chatId: string,
   userId: string,
@@ -158,13 +134,6 @@ export async function deleteChat(
   return deleted.length > 0;
 }
 
-/**
- * In one transaction, verify the chat's most recent message is still
- * the assistant reply the caller saw and delete it. Returns false
- * (deleting nothing) when the conversation moved on in the meantime or
- * the last message is not an assistant turn. Not owner-scoped: callers
- * must verify ownership first.
- */
 export async function deleteLastAssistantMessage(
   chatId: string,
   expectedMessageId: string,
@@ -191,22 +160,13 @@ export async function deleteLastAssistantMessage(
 }
 
 export type RollbackInfo = {
-  /** Text of the deleted user message, for refilling the composer. */
   userContent: string;
-  /** Storage paths of the attachments that were linked to it. */
+
   attachmentPaths: string[];
-  /** How many message rows were removed in total. */
+
   deletedMessages: number;
 };
 
-/**
- * In one transaction, delete the chat's last user message along with
- * every assistant message that followed it. Attachment ROWS linked to
- * the user message are removed by the FK cascade; their storage paths
- * are captured first and returned so the caller can clear the bucket.
- * Returns null when the chat holds no user message. Not owner-scoped:
- * callers must verify ownership first.
- */
 export async function rollbackLastUserMessage(
   chatId: string,
 ): Promise<RollbackInfo | null> {
@@ -226,14 +186,11 @@ export async function rollbackLastUserMessage(
       .limit(1);
     if (!lastUser) return null;
 
-    // Capture storage paths before the rows cascade away with the message.
     const linked = await tx
       .select({ storagePath: schema.chatAttachments.storagePath })
       .from(schema.chatAttachments)
       .where(eq(schema.chatAttachments.messageId, lastUser.id));
 
-    // The user message goes, along with every assistant message from the
-    // same moment on (its reply, plus any regenerated replies after it).
     const deleted = await tx
       .delete(schema.chatMessages)
       .where(
@@ -258,11 +215,6 @@ export async function rollbackLastUserMessage(
   });
 }
 
-/**
- * Set the chat title only while it still holds the DB default ("New
- * chat"). Used to auto-name a chat from its first message without
- * clobbering a title the user set themselves.
- */
 export async function setChatTitleIfDefault(
   chatId: string,
   title: string,

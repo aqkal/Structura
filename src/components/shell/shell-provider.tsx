@@ -12,7 +12,7 @@ type ShellContextValue = {
   setPaletteOpen: React.Dispatch<React.SetStateAction<boolean>>;
   shortcutsOpen: boolean;
   setShortcutsOpen: React.Dispatch<React.SetStateAction<boolean>>;
-  /** Whether the current section provides a sidebar (drives the hamburger). */
+
   hasSidebar: boolean;
   setHasSidebar: React.Dispatch<React.SetStateAction<boolean>>;
 };
@@ -27,16 +27,10 @@ export function useShell(): ShellContextValue {
   return ctx;
 }
 
-/**
- * Client glue for the server-rendered AppShell. Holds the open/closed
- * state for the mobile drawer, command palette, and shortcuts dialog, and
- * registers the global keyboard shortcuts exactly once.
- */
 export function ShellProvider({
   enableShortcuts = false,
   children,
 }: {
-  /** Shortcuts and overlays are for signed-in users only. */
   enableShortcuts?: boolean;
   children: React.ReactNode;
 }) {
@@ -89,11 +83,6 @@ export function ShellProvider({
   );
 }
 
-/**
- * Mounted by ShellContent when the section has a sidebar; tells the nav
- * (which lives in the persistent app layout, above the sections) to show
- * the mobile hamburger.
- */
 export function SidebarRegistrar() {
   const { setHasSidebar, setDrawerOpen } = useShell();
   React.useEffect(() => {

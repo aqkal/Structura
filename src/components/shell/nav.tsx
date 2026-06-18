@@ -60,7 +60,7 @@ export function Nav({ user }: NavProps) {
           href="/"
           className="font-sans font-semibold tracking-tight text-[color:var(--mint-900)] text-[var(--text-lg)]"
         >
-          Structura
+          Qualia
         </Link>
       </div>
 
@@ -204,6 +204,15 @@ function AvatarMenu({ user }: { user: NavUser }) {
               className="mx-1.5 mb-1 border-t border-[color:var(--border-ink)]"
               aria-hidden="true"
             />
+
+            <Link
+              href="/portfolio"
+              role="menuitem"
+              className={menuItemClass}
+              onClick={() => setOpen(false)}
+            >
+              Portfolio of proof
+            </Link>
 
             <Link
               href="/settings"

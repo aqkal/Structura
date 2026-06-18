@@ -6,10 +6,6 @@ export type CurrentUser = {
   name: string | null;
 };
 
-/**
- * Returns the signed-in user, or null if no session.
- * Never throws. Pages should be able to call this and render either state.
- */
 export async function getCurrentUser(): Promise<CurrentUser | null> {
   try {
     const supabase = await createClient();

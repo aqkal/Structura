@@ -1,8 +1,13 @@
-# Structura
+# Qualia
 
-A Socratic AI tutor. It guides your thinking through hard problems with
-questions and hints; it never gives the answer. Two modes: a structured
-5-step **Guided** session and a free-form **Chat** tutor.
+A Socratic AI tutor. It guides your thinking with questions and never gives
+the answer. Two modes:
+
+- **Guided** works a topic toward a goal (strengthen an argument, dive deep,
+  or shape a research question) through a sequence of focused thinking moves,
+  then writes a proof card recording what you reasoned out.
+- **Chat** is a free-form Socratic tutor: streaming replies, a conversation
+  sidebar, model switching, and image/PDF upload.
 
 See `context.md` for an architecture overview and `SECURITY.md` for the
 security policy.
@@ -39,9 +44,8 @@ security policy.
 
 ### 2. Configure env
 
-```bash
-cp .env.example .env
-```
+Create a `.env` file in the project root (it is gitignored). `env-example.md`
+lists every variable with placeholder values to copy from.
 
 Required keys:
 

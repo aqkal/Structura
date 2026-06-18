@@ -1,13 +1,6 @@
 @import "tailwindcss";
 
-/* ─────────────────────────────────────────────────────────────
-   STRUCTURA DESIGN TOKENS
-   Tokens are declared in :root and then re-exposed to Tailwind
-   via @theme inline. Edit a value once, both sides update.
-   ───────────────────────────────────────────────────────────── */
-
 :root {
-  /* PALETTE. mint + lavender, anchored on warm green */
   --mint-50: #ecf9f1;
   --mint-100: #d4f5e2;
   --mint-200: #b8edce;
@@ -24,7 +17,6 @@
   --lavender-600: #7a5fa6;
   --lavender-800: #3d2d5c;
 
-  /* SEMANTIC */
   --color-bg: #c8f0d8;
   --color-ink: #14241a;
   --color-ink-muted: #3a5242;
@@ -32,7 +24,6 @@
   --color-accent: var(--lavender-800);
   --color-accent-green: var(--mint-700);
 
-  /* GLASS SURFACES */
   --surface-1: rgba(255, 255, 255, 0.6);
   --surface-2: rgba(255, 255, 255, 0.4);
   --surface-3: rgba(255, 255, 255, 0.22);
@@ -40,13 +31,11 @@
   --border-soft: rgba(255, 255, 255, 0.65);
   --border-ink: rgba(20, 36, 26, 0.08);
 
-  /* RADII */
   --radius-sm: 8px;
   --radius: 14px;
   --radius-lg: 20px;
   --radius-pill: 9999px;
 
-  /* SHADOWS */
   --shadow-glass:
     0 1px 0 rgba(255, 255, 255, 0.6) inset,
     0 8px 24px -12px rgba(26, 92, 58, 0.18);
@@ -55,9 +44,6 @@
     0 1px 0 rgba(255, 255, 255, 0.18) inset,
     0 6px 16px -8px rgba(13, 51, 32, 0.45);
 
-  /* FLUID TYPE. clamp(min, preferred, max).
-     Tuned so 1366px laptop reads comfortably and 4K still feels generous
-     without bloating. */
   --text-2xs: clamp(11px, 0.35vw + 9px, 13px);
   --text-xs: clamp(12px, 0.4vw + 10px, 14px);
   --text-sm: clamp(14px, 0.5vw + 11px, 16px);
@@ -67,7 +53,6 @@
   --text-2xl: clamp(28px, 2vw + 14px, 44px);
   --text-3xl: clamp(36px, 2.8vw + 16px, 64px);
 
-  /* SPACING SCALE */
   --space-1: 4px;
   --space-2: 8px;
   --space-3: 12px;
@@ -78,26 +63,17 @@
   --space-10: 40px;
   --space-12: 56px;
 
-  /* LAYOUT WIDTHS. grow with viewport but cap on huge screens */
   --sidebar-w: clamp(220px, 16vw, 320px);
   --rightpanel-w: clamp(200px, 14vw, 280px);
   --content-max: clamp(640px, 72vw, 1240px);
   --reading-max: 68ch;
 
-  /* MOTION */
   --ease-out: cubic-bezier(0.2, 0.7, 0.2, 1);
   --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
 
   color-scheme: light;
 }
 
-/* ─────────────────────────────────────────────────────────────
-   DARK THEME. Set by an inline script before paint via
-   <html data-theme="dark">. Same mint + lavender personality on
-   deep green-black. `--color-white` is remapped so the many
-   bg-white/NN glass fills become dark surfaces automatically;
-   true whites use explicit literals instead of the token.
-   ───────────────────────────────────────────────────────────── */
 [data-theme="dark"] {
   color-scheme: dark;
 
@@ -118,8 +94,6 @@
   --mint-900: #d9f2e3;
   --mint-700: #8fdcb0;
 
-  /* Pale mint tints used as surface fills (e.g. the user chat bubble)
-     become deep green surfaces so ink-colored text stays readable. */
   --mint-50: #16281d;
   --mint-100: #1f3a2a;
   --mint-200: #284a36;
@@ -188,10 +162,6 @@
   background-size: 200% 100%;
 }
 
-/* ─────────────────────────────────────────────────────────────
-   TAILWIND THEME. map tokens to utility classes
-   e.g. `bg-surface-1`, `text-ink-muted`, `rounded-pill`
-   ───────────────────────────────────────────────────────────── */
 @theme inline {
   --color-bg: var(--color-bg);
   --color-ink: var(--color-ink);
@@ -235,9 +205,6 @@
   --text-3xl: var(--text-3xl);
 }
 
-/* ─────────────────────────────────────────────────────────────
-   BASE
-   ───────────────────────────────────────────────────────────── */
 * {
   box-sizing: border-box;
 }
@@ -260,12 +227,10 @@ body {
   overflow: hidden auto;
 }
 
-/* Atmospheric gradient. fixed so it covers any viewport.
-   Oversized (inset -12%) so the slow ambient drift never exposes edges. */
 body::before {
   content: "";
   position: fixed;
-  inset: -12%;
+  inset: 0;
   background:
     radial-gradient(
       ellipse 60% 70% at 80% 20%,
@@ -280,33 +245,19 @@ body::before {
     linear-gradient(160deg, #c8f2dc 0%, #dcd0f5 50%, #c0ecd4 100%);
   z-index: -1;
   pointer-events: none;
-  will-change: transform;
-  animation: bg-drift 26s ease-in-out infinite alternate;
 }
 
-@keyframes bg-drift {
-  from {
-    transform: translate3d(-1.2%, -0.8%, 0) scale(1);
-  }
-  to {
-    transform: translate3d(1.2%, 1.2%, 0) scale(1.04);
-  }
-}
-
-/* Selection */
 ::selection {
   background: var(--lavender-300);
   color: var(--lavender-800);
 }
 
-/* Focus ring */
 :focus-visible {
   outline: 2px solid var(--lavender-400);
   outline-offset: 2px;
   border-radius: var(--radius-sm);
 }
 
-/* Scrollbar */
 :root {
   scrollbar-color: rgba(20, 36, 26, 0.25) transparent;
 }
@@ -325,7 +276,6 @@ body::before {
   background: rgba(20, 36, 26, 0.38);
 }
 
-/* Keyboard key chips, used by shortcut hints and the shortcuts sheet */
 kbd {
   display: inline-flex;
   align-items: center;
@@ -342,7 +292,51 @@ kbd {
   color: var(--color-ink-muted);
 }
 
-/* Reduced motion respect */
+@media print {
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+  [data-no-print] {
+    display: none !important;
+  }
+  body::before {
+    display: none !important;
+  }
+  .glass {
+    box-shadow: none !important;
+    border-color: rgba(20, 36, 26, 0.15) !important;
+  }
+  [data-theme="dark"] {
+    --color-bg: #c8f0d8;
+    --color-ink: #14241a;
+    --color-ink-muted: #3a5242;
+    --color-ink-subtle: #6c8773;
+    --color-white: #ffffff;
+    --lavender-100: #f1eaff;
+    --lavender-200: #e8dff5;
+    --lavender-300: #d4c5ed;
+    --lavender-400: #b8a0d8;
+    --lavender-600: #7a5fa6;
+    --lavender-800: #3d2d5c;
+    --mint-50: #ecf9f1;
+    --mint-100: #d4f5e2;
+    --mint-200: #b8edce;
+    --mint-300: #8fdcb0;
+    --mint-500: #3a9a6a;
+    --mint-700: #1a5c3a;
+    --mint-900: #0d3320;
+    --surface-1: rgba(255, 255, 255, 0.6);
+    --surface-2: rgba(255, 255, 255, 0.4);
+    --surface-soft: rgba(255, 255, 255, 0.18);
+    --border-soft: rgba(20, 36, 26, 0.15);
+    --border-ink: rgba(20, 36, 26, 0.08);
+  }
+  body {
+    background: #ffffff !important;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
@@ -352,9 +346,6 @@ kbd {
   }
 }
 
-/* ─────────────────────────────────────────────────────────────
-   UTILITY COMPONENT CLASSES
-   ───────────────────────────────────────────────────────────── */
 @utility glass {
   background: var(--surface-1);
   backdrop-filter: blur(14px) saturate(1.05);
@@ -383,7 +374,6 @@ kbd {
   color: var(--color-ink-muted);
 }
 
-/* Skeleton shimmer for loading states */
 @keyframes shimmer-sweep {
   0% {
     background-position: 200% 0;
@@ -403,7 +393,6 @@ kbd {
   animation: shimmer-sweep 1.6s linear infinite;
 }
 
-/* Blinking caret appended to streaming AI text */
 @keyframes caret-blink {
   0%,
   49% {
@@ -425,7 +414,6 @@ kbd {
   animation: caret-blink 1s steps(1) infinite;
 }
 
-/* Hide scrollbars on horizontal scroll-snap rows */
 @utility hide-scrollbar {
   scrollbar-width: none;
   &::-webkit-scrollbar {
@@ -433,7 +421,6 @@ kbd {
   }
 }
 
-/* Gradient headline treatment for hero and celebration moments */
 @utility text-hero-gradient {
   background: linear-gradient(
     120deg,
@@ -445,10 +432,6 @@ kbd {
   background-clip: text;
   color: transparent;
 }
-
-/* ─────────────────────────────────────────────────────────────
-   SESSION UI. Markdown body, KaTeX guards, thinking loader.
-   ───────────────────────────────────────────────────────────── */
 
 .md-body p {
   margin: 0 0 0.5em;

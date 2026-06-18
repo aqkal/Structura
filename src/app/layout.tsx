@@ -13,11 +13,11 @@ const inter = Inter({
 
 export const metadata: Metadata = {
   title: {
-    default: "Structura. Reason it through.",
-    template: "%s · Structura",
+    default: "Qualia. Reason it through.",
+    template: "%s · Qualia",
   },
   description:
-    "A reasoning scaffold for students. Structura guides your thinking, it doesn't solve problems for you.",
+    "A reasoning scaffold for students. Qualia guides your thinking, it doesn't solve problems for you.",
 };
 
 export const viewport: Viewport = {
@@ -37,7 +37,6 @@ export default function RootLayout({
       suppressHydrationWarning
     >
       <body>
-        {/* Applies the saved theme before first paint to avoid a flash. */}
         <script
           dangerouslySetInnerHTML={{
             __html:

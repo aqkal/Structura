@@ -47,7 +47,7 @@ export default async function HomePage() {
               className="leading-relaxed text-[color:var(--color-ink-muted)] text-[var(--text-base)]"
               style={{ maxWidth: "var(--reading-max)" }}
             >
-              Structura is a thinking scaffold, not an answer key. It asks the
+              Qualia is a thinking scaffold, not an answer key. It asks the
               questions that make you slow down, then keeps the record of how
               you reasoned, not just what you got right.
             </p>
@@ -104,7 +104,7 @@ function SignedOutLanding() {
                 className="leading-relaxed text-[color:var(--color-ink-muted)] text-[var(--text-base)]"
                 style={{ maxWidth: "var(--reading-max)" }}
               >
-                Structura is a thinking scaffold, not an answer key. It asks the
+                Qualia is a thinking scaffold, not an answer key. It asks the
                 questions that make you slow down, then keeps the record of how
                 you reasoned, not just what you got right.
               </p>

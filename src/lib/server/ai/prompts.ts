@@ -1,12 +1,6 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
 
-/**
- * Prompt templates live as .md files next to this module so they can be
- * reviewed and diffed like product copy (they ARE the product). They are
- * read once, synchronously, at module init and cached in module scope.
- */
-
 export type PromptName = "scaffold" | "feedback" | "hint" | "chat";
 
 function loadTemplate(name: PromptName): string {
@@ -23,12 +17,6 @@ const templates: Record<PromptName, string> = {
   chat: loadTemplate("chat"),
 };
 
-/**
- * Render a prompt template, interpolating every {{key}} placeholder from
- * `vars`. Throws if the template references a key that was not provided,
- * so a typo in a template fails loudly instead of leaking "{{stepNum}}"
- * into a live system prompt.
- */
 export function renderPrompt(
   name: PromptName,
   vars: Record<string, string | number>,

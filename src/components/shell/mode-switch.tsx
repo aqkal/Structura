@@ -56,7 +56,7 @@ export function ModeSwitch() {
               <motion.span
                 layoutId="mode-switch-pill"
                 aria-hidden="true"
-                className="absolute inset-0 rounded-full bg-white/85 shadow-[var(--shadow-glass)]"
+                className="absolute inset-0 rounded-full bg-white/85"
                 transition={springSnappy}
               />
             )}

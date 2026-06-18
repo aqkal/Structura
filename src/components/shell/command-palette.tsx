@@ -304,7 +304,7 @@ export function CommandPalette() {
                         <motion.span
                           layoutId="palette-selected"
                           aria-hidden="true"
-                          className="absolute inset-0 rounded-[var(--radius-sm)] bg-white/70 shadow-[var(--shadow-glass)]"
+                          className="absolute inset-0 rounded-[var(--radius-sm)] bg-white/70"
                           transition={springSnappy}
                         />
                       )}

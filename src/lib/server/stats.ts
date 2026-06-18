@@ -5,23 +5,10 @@ import { db, schema } from "@/lib/db";
 
 const DAY_MS = 86_400_000;
 
-/** "YYYY-MM-DD" in UTC, the day-bucket key for streaks and activity. */
 function utcDayKey(date: Date): string {
   return date.toISOString().slice(0, 10);
 }
 
-/**
- * Practice stats for the dashboard right panel, computed from existing
- * tables only (sessions + confidence_ratings, no migrations):
- *
- * - currentStreak: consecutive UTC days, ending today or yesterday, with
- *   at least one completed session.
- * - totals: completed sessions, minutes (from elapsedSeconds), hints used.
- * - avgConfidenceDelta: mean of (end - start) where both ratings exist.
- * - recentDeltas: the last 10 completed sessions' deltas, oldest first,
- *   for the sparkline.
- * - weekActivity: the last 7 UTC days, oldest first (today last).
- */
 export async function getUserStats(userId: string): Promise<StatsData> {
   const completed = await db
     .select({
@@ -56,8 +43,6 @@ export async function getUserStats(userId: string): Promise<StatsData> {
     now.getUTCDate(),
   );
 
-  // Streak walks backwards from today; a streak that ended yesterday
-  // still counts (today is not over yet).
   let currentStreak = 0;
   let cursor = todayUtc;
   if (!activeDays.has(utcDayKey(new Date(cursor)))) cursor -= DAY_MS;
@@ -73,7 +58,6 @@ export async function getUserStats(userId: string): Promise<StatsData> {
     );
   }
 
-  // Confidence deltas, collected newest-first to match `completed`.
   const deltasNewestFirst: number[] = [];
   let avgConfidenceDelta: number | null = null;
 

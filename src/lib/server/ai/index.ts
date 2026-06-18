@@ -3,10 +3,6 @@ import { generateText, streamText } from "ai";
 import { MODEL_ID, getModel, getModelById, resolveModelId } from "./provider";
 import { renderPrompt } from "./prompts";
 
-/* ------------------------------------------------------------------
-   Types
-   ------------------------------------------------------------------ */
-
 export type StepHistoryItem = {
   stepNum: number;
   question: string;
@@ -33,10 +29,7 @@ export type FinishInfo = {
 export type StreamCallbacks = {
   signal?: AbortSignal;
   onFinish?: (info: FinishInfo) => Promise<void> | void;
-  /**
-   * Optional student-picked model id. Validated against the allowlist;
-   * anything unknown silently falls back to the default model.
-   */
+
   modelId?: string;
 };
 
@@ -48,24 +41,9 @@ const GEN_PARAMS: Record<"scaffold" | "feedback" | "hint", GenParams> = {
   hint: { temperature: 0.7, maxOutputTokens: 160 },
 };
 
-/**
- * Gemini 2.5 models think by default, and thought tokens count against
- * maxOutputTokens. Our outputs are short Socratic turns; thinking adds
- * latency and silently eats the token caps (an 8-token judge cap would
- * produce empty text). Disable it for every call.
- */
 const NO_THINKING = {
   google: { thinkingConfig: { thinkingBudget: 0 } },
 } as const;
-
-/* ------------------------------------------------------------------
-   Message assembly.
-
-   SECURITY INVARIANT: user-supplied content (problem text, responses,
-   drafts, history) NEVER goes into the system prompt. The system prompt
-   is rendered only from safe, app-controlled vars. Everything the
-   student wrote travels in a single user-role message, fenced as data.
-   ------------------------------------------------------------------ */
 
 function historyBlock(history: StepHistoryItem[]): string {
   if (history.length === 0) return "(no steps completed yet)";
@@ -145,17 +123,11 @@ function hintParts(ctx: ScaffoldContext, draft: string | null): PromptParts {
   };
 }
 
-/* ------------------------------------------------------------------
-   Streaming calls (session loop). Caller invokes .toTextStreamResponse().
-   ------------------------------------------------------------------ */
-
 function streamWith(
   parts: PromptParts,
   params: GenParams,
   cb?: StreamCallbacks,
 ) {
-  // resolveModelId maps unknown ids to MODEL_ID, so the model called and
-  // the model recorded in usage rows always agree.
   const resolvedId = resolveModelId(cb?.modelId);
   return streamText({
     model: resolvedId === MODEL_ID ? getModel() : getModelById(resolvedId),
@@ -197,10 +169,6 @@ export function streamHint(
   return streamWith(hintParts(ctx, draft), GEN_PARAMS.hint, cb);
 }
 
-/* ------------------------------------------------------------------
-   Non-streaming calls (eval harness).
-   ------------------------------------------------------------------ */
-
 async function generateWith(
   parts: PromptParts,
   params: GenParams,
@@ -234,10 +202,6 @@ export async function generateHint(
   return generateWith(hintParts(ctx, draft), GEN_PARAMS.hint);
 }
 
-/* ------------------------------------------------------------------
-   LLM-as-judge (eval harness). Deterministic, tiny output.
-   ------------------------------------------------------------------ */
-
 export async function judge(
   textToJudge: string,
   rubric: string,
@@ -259,7 +223,6 @@ export async function judge(
   const verdict = text.trim().toLowerCase();
   if (/^yes\b/.test(verdict)) return "yes";
   if (/^no\b/.test(verdict)) return "no";
-  // Never silently default: an unparseable verdict would poison eval
-  // results in whichever direction the default leaned.
+
   throw new Error(`Judge returned an unparseable verdict: "${text.trim()}"`);
 }

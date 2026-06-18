@@ -8,36 +8,28 @@ import { apiError } from "@/lib/server/api-error";
 import { logEvent } from "@/lib/server/audit";
 import { checkCustomLimit } from "@/lib/server/rate-limit";
 
-/** Palette searches a single user may run per minute (debounced client side). */
 const SEARCHES_PER_MINUTE = 60;
 
-/** Result rows per kind when a query is present. */
 const MATCH_LIMIT = 8;
 
-/** Result rows per kind when the query is empty (recents). */
 const RECENT_LIMIT = 5;
 
 const searchInput = z.object({
   q: z.string().max(200),
 });
 
-/** Escape LIKE wildcards so user input matches literally. */
 function escapeLike(value: string): string {
   return value.replace(/[\\%_]/g, (m) => `\\${m}`);
 }
 
-/**
- * GET /api/search?q=
- *
- * Command palette source. Returns the signed-in user's sessions and chats
- * matching the query (case-insensitive substring), ordered by recency.
- * An empty query returns the most recent items of each kind.
- */
 export async function GET(req: NextRequest) {
   const user = await getCurrentUser();
   if (!user) return apiError(401, "unauthorized");
 
-  const limit = checkCustomLimit(`search:${user.id}`, SEARCHES_PER_MINUTE);
+  const limit = await checkCustomLimit(
+    `search:${user.id}`,
+    SEARCHES_PER_MINUTE,
+  );
   if (!limit.allowed) {
     return apiError(429, "rate_limited", "Slow down a moment.", {
       retryAfterSeconds: limit.retryAfterSeconds,
@@ -90,7 +82,6 @@ export async function GET(req: NextRequest) {
       .limit(perKind),
   ]);
 
-  // Counts only, never the query text or matched content.
   logEvent("palette_search", {
     hasQuery,
     sessions: sessionRows.length,

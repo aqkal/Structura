@@ -4,17 +4,6 @@ import { db, schema } from "@/lib/db";
 
 type UsageKind = "scaffold" | "feedback" | "hint" | "judge" | "chat";
 
-/**
- * Reserve a usage event BEFORE the AI call starts.
- *
- * The row is inserted immediately (with zero tokens) so it counts toward
- * the daily budget the instant the call begins, not when it finishes. This
- * closes the race where many concurrent requests all read a stale "used"
- * count, pass the gate, and blow past the budget: each one inserts its row
- * up front, so later requests in the same burst see them.
- *
- * Returns the row id so `finishUsage` can fill in real token counts.
- */
 export async function beginUsage(args: {
   userId: string;
   sessionId?: string | null;
@@ -35,7 +24,6 @@ export async function beginUsage(args: {
   return row.id;
 }
 
-/** Fill in token counts on a previously reserved usage row. */
 export async function finishUsage(
   usageId: string,
   inputTokens: number,
@@ -47,12 +35,10 @@ export async function finishUsage(
     .where(eq(schema.usageEvents.id, usageId));
 }
 
-/**
- * Per-user daily AI call budget. "Daily" means the current UTC day, so the
- * counter resets at 00:00 UTC for everyone. Counts reserved rows too, so a
- * burst of concurrent requests is bounded by the budget rather than all
- * slipping through on a stale read.
- */
+export async function deleteUsage(usageId: string): Promise<void> {
+  await db.delete(schema.usageEvents).where(eq(schema.usageEvents.id, usageId));
+}
+
 export async function checkDailyBudget(
   userId: string,
 ): Promise<{ allowed: boolean; used: number; budget: number }> {

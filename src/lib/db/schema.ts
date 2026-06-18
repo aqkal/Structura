@@ -13,10 +13,6 @@ import {
 } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 
-/* ─────────────────────────────────────────────────────────────
-   ENUMS
-   ───────────────────────────────────────────────────────────── */
-
 export const scaffoldMode = pgEnum("scaffold_mode", [
   "guided",
   "questions_only",
@@ -49,15 +45,8 @@ export const scheduledTaskStatus = pgEnum("scheduled_task_status", [
 
 export const chatRole = pgEnum("chat_role", ["user", "assistant"]);
 
-/* ─────────────────────────────────────────────────────────────
-   USERS
-   Supabase manages auth.users; we mirror the id into our schema
-   so we can put foreign keys on it. The mirror row is created on
-   first sign-in via a Supabase auth trigger (set up in a migration).
-   ───────────────────────────────────────────────────────────── */
-
 export const users = pgTable("users", {
-  id: uuid("id").primaryKey(), // matches auth.users.id
+  id: uuid("id").primaryKey(),
   email: text("email").notNull(),
   displayName: text("display_name"),
   avatarUrl: text("avatar_url"),
@@ -65,11 +54,6 @@ export const users = pgTable("users", {
     .defaultNow()
     .notNull(),
 });
-
-/* ─────────────────────────────────────────────────────────────
-   SUBJECTS. keep as a table (not a hardcoded enum) so we can
-   add new ones without migrations.
-   ───────────────────────────────────────────────────────────── */
 
 export const subjects = pgTable(
   "subjects",
@@ -82,10 +66,6 @@ export const subjects = pgTable(
   (t) => [uniqueIndex("subjects_slug_idx").on(t.slug)],
 );
 
-/* ─────────────────────────────────────────────────────────────
-   SESSIONS. one per "I'm working on this problem" attempt.
-   ───────────────────────────────────────────────────────────── */
-
 export const sessions = pgTable(
   "sessions",
   {
@@ -96,6 +76,12 @@ export const sessions = pgTable(
     problemText: text("problem_text").notNull(),
     subjectSlug: text("subject_slug").notNull(),
     scaffoldMode: scaffoldMode("scaffold_mode").notNull().default("guided"),
+
+    intention: text("intention").notNull().default("dive-deep"),
+
+    pasted: boolean("pasted").notNull().default(false),
+
+    summary: jsonb("summary"),
     status: sessionStatus("status").notNull().default("active"),
     totalSteps: smallint("total_steps").notNull().default(5),
     currentStep: smallint("current_step").notNull().default(0),
@@ -113,10 +99,6 @@ export const sessions = pgTable(
   ],
 );
 
-/* ─────────────────────────────────────────────────────────────
-   STEPS. one per scaffolding question in a session.
-   ───────────────────────────────────────────────────────────── */
-
 export const steps = pgTable(
   "steps",
   {
@@ -125,6 +107,8 @@ export const steps = pgTable(
       .references(() => sessions.id, { onDelete: "cascade" })
       .notNull(),
     stepNum: smallint("step_num").notNull(),
+
+    kind: text("kind"),
     question: text("question").notNull(),
     userResponse: text("user_response"),
     aiFeedback: text("ai_feedback"),
@@ -137,10 +121,6 @@ export const steps = pgTable(
   (t) => [uniqueIndex("steps_session_num_idx").on(t.sessionId, t.stepNum)],
 );
 
-/* ─────────────────────────────────────────────────────────────
-   HINTS. each hint requested during a step.
-   ───────────────────────────────────────────────────────────── */
-
 export const hints = pgTable("hints", {
   id: uuid("id").primaryKey().defaultRandom(),
   stepId: uuid("step_id")
@@ -152,10 +132,6 @@ export const hints = pgTable("hints", {
     .notNull(),
 });
 
-/* ─────────────────────────────────────────────────────────────
-   CONFIDENCE. captured at start, mid, and end of session.
-   ───────────────────────────────────────────────────────────── */
-
 export const confidenceRatings = pgTable(
   "confidence_ratings",
   {
@@ -164,17 +140,13 @@ export const confidenceRatings = pgTable(
       .references(() => sessions.id, { onDelete: "cascade" })
       .notNull(),
     point: confidencePoint("point").notNull(),
-    rating: smallint("rating").notNull(), // 1..5
+    rating: smallint("rating").notNull(),
     createdAt: timestamp("created_at", { withTimezone: true })
       .defaultNow()
       .notNull(),
   },
   (t) => [uniqueIndex("conf_session_point_idx").on(t.sessionId, t.point)],
 );
-
-/* ─────────────────────────────────────────────────────────────
-   RETROSPECTIVES. student's reflection days after the session.
-   ───────────────────────────────────────────────────────────── */
 
 export const retrospectives = pgTable("retrospectives", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -187,11 +159,6 @@ export const retrospectives = pgTable("retrospectives", {
     .defaultNow()
     .notNull(),
 });
-
-/* ─────────────────────────────────────────────────────────────
-   PORTFOLIO PINS. sessions the student pinned to their portfolio,
-   optionally with a public share slug.
-   ───────────────────────────────────────────────────────────── */
 
 export const portfolioPins = pgTable(
   "portfolio_pins",
@@ -209,11 +176,6 @@ export const portfolioPins = pgTable(
   },
   (t) => [uniqueIndex("portfolio_slug_idx").on(t.publicSlug)],
 );
-
-/* ─────────────────────────────────────────────────────────────
-   SCHEDULED TASKS. cron worker source-of-truth.
-   Used (later) for day-2 retrospective re-engagement emails.
-   ───────────────────────────────────────────────────────────── */
 
 export const scheduledTasks = pgTable(
   "scheduled_tasks",
@@ -236,11 +198,6 @@ export const scheduledTasks = pgTable(
   },
   (t) => [index("scheduled_due_idx").on(t.status, t.fireAt)],
 );
-
-/* ─────────────────────────────────────────────────────────────
-   USAGE EVENTS. one row per AI call. Powers the per-user daily
-   call budget and future cost dashboards.
-   ───────────────────────────────────────────────────────────── */
 
 export const usageKind = pgEnum("usage_kind", [
   "scaffold",
@@ -270,11 +227,6 @@ export const usageEvents = pgTable(
   },
   (t) => [index("usage_user_day_idx").on(t.userId, t.createdAt)],
 );
-
-/* ─────────────────────────────────────────────────────────────
-   CHATS. free-form Socratic tutor conversations (chat mode).
-   Distinct from sessions, which are the structured 5-step loop.
-   ───────────────────────────────────────────────────────────── */
 
 export const chats = pgTable(
   "chats",
@@ -310,12 +262,6 @@ export const chatMessages = pgTable(
   (t) => [index("chat_messages_chat_idx").on(t.chatId, t.createdAt)],
 );
 
-/* ─────────────────────────────────────────────────────────────
-   CHAT ATTACHMENTS. images and PDFs a student uploads with a chat
-   message. Files live in private Supabase Storage; this row holds
-   the reference and metadata. Owner-scoped via the parent chat.
-   ───────────────────────────────────────────────────────────── */
-
 export const chatAttachments = pgTable(
   "chat_attachments",
   {
@@ -340,9 +286,11 @@ export const chatAttachments = pgTable(
   (t) => [index("chat_attachments_chat_idx").on(t.chatId, t.createdAt)],
 );
 
-/* ─────────────────────────────────────────────────────────────
-   RELATIONS
-   ───────────────────────────────────────────────────────────── */
+export const rateLimits = pgTable("rate_limits", {
+  key: text("key").primaryKey(),
+  windowStart: timestamp("window_start", { withTimezone: true }).notNull(),
+  count: integer("count").notNull(),
+});
 
 export const usersRelations = relations(users, ({ many }) => ({
   sessions: many(sessions),

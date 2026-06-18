@@ -7,23 +7,6 @@ import { Nav } from "./nav";
 import { ShellProvider, SidebarRegistrar } from "./shell-provider";
 import { ShortcutsDialog } from "./shortcuts-dialog";
 
-/**
- * The shell is split in two so navigation never rebuilds the chrome:
- *
- * - ShellFrame lives in the (app) route-group layout. It mounts ONCE and
- *   persists across every in-app navigation: nav, command palette,
- *   shortcuts dialog, mobile bottom bar. Switching chats or modes only
- *   swaps what renders below it.
- *
- * - ShellContent lives in section layouts (chat, session) or directly in
- *   pages without a section (home, settings). It provides the
- *   sidebar/main/right-panel grid. When it sits in a section layout it
- *   also persists across that section's navigations, so the sidebar does
- *   not remount when you switch conversations.
- *
- * The shell never scrolls the page; only `main` scrolls.
- */
-
 type ShellUser = { name: string | null; email: string } | null;
 
 export function ShellFrame({
@@ -54,7 +37,6 @@ export function ShellFrame({
 }
 
 type ShellContentProps = {
-  /** Reserve bottom space for the signed-in mobile bottom bar. */
   signedIn?: boolean;
   sidebar?: React.ReactNode;
   rightPanel?: React.ReactNode;
@@ -101,8 +83,7 @@ export function ShellContent({
             className={cn(
               "mx-auto w-full",
               "px-4 pt-5 md:px-[var(--space-6)] md:pt-[var(--space-8)]",
-              // Leave room for the fixed bottom bar (h-14 + safe area)
-              // on signed-in mobile layouts.
+
               signedIn
                 ? "pb-[calc(3.5rem+env(safe-area-inset-bottom)+1.25rem)] lg:pb-[var(--space-8)]"
                 : "pb-5 md:pb-[var(--space-8)]",

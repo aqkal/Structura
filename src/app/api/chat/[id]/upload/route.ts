@@ -6,21 +6,17 @@ import {
   ALLOWED_MEDIA,
   DAILY_STORAGE_BUDGET_BYTES,
   MAX_ATTACHMENT_BYTES,
+  MAX_DAILY_UPLOADS,
+  UPLOADS_PER_MINUTE,
   storageUsedTodayBytes,
   uploadAttachment,
+  uploadsCountToday,
 } from "@/lib/server/attachments";
+import { checkCustomLimit } from "@/lib/server/rate-limit";
 import { guardChat } from "@/lib/server/chat-guard";
 
-/**
- * POST /api/chat/{id}/upload
- *
- * Accepts a single file (multipart/form-data, field "file") and stores it
- * in the private chat-uploads bucket under "{userId}/{chatId}/{uuid}.{ext}".
- * The browser NEVER touches storage directly: ownership is checked here via
- * guardChat, and every file is validated server-side (mediaType allowlist,
- * size cap). The returned row id is later linked to a message when the
- * student sends their turn.
- */
+export const maxDuration = 30;
+
 export async function POST(
   req: NextRequest,
   ctx: { params: Promise<{ id: string }> },
@@ -30,9 +26,13 @@ export async function POST(
   if (!guard.ok) return guard.response;
   const { user } = guard;
 
-  // Reject oversized payloads before reading the whole multipart body, so a
-  // huge or slow upload cannot force us to buffer it just to fail the size
-  // check afterward. (Defense in depth: file.size is re-checked below.)
+  const rate = await checkCustomLimit(`upload:${user.id}`, UPLOADS_PER_MINUTE);
+  if (!rate.allowed) {
+    return apiError(429, "upload_rate_limited", "Slow down a moment.", {
+      retryAfterSeconds: rate.retryAfterSeconds,
+    });
+  }
+
   const declaredLength = Number(req.headers.get("content-length") ?? 0);
   if (declaredLength > MAX_ATTACHMENT_BYTES + 1024 * 1024) {
     return apiError(400, "too_large", "That file is too large.");
@@ -57,13 +57,21 @@ export async function POST(
     return apiError(400, "too_large", "That file is too large.");
   }
 
-  // Per-user daily storage budget, so one account cannot fill the bucket.
+  const countToday = await uploadsCountToday(user.id);
+  if (countToday >= MAX_DAILY_UPLOADS) {
+    return apiError(
+      429,
+      "storage_quota_exceeded",
+      `Daily upload limit reached (${MAX_DAILY_UPLOADS} files). Try again tomorrow.`,
+    );
+  }
+
   const usedToday = await storageUsedTodayBytes(user.id);
   if (usedToday + file.size > DAILY_STORAGE_BUDGET_BYTES) {
     return apiError(
       429,
       "storage_quota_exceeded",
-      "Daily upload limit reached. Try again tomorrow.",
+      "Daily upload size limit reached. Try again tomorrow.",
     );
   }
 

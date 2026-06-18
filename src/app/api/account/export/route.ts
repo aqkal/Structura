@@ -4,27 +4,14 @@ import { apiError } from "@/lib/server/api-error";
 import { errorName, logEvent } from "@/lib/server/audit";
 import { checkCustomLimit } from "@/lib/server/rate-limit";
 
-/** Exports a single user may request per hour. */
 const EXPORTS_PER_HOUR = 5;
 const HOUR_MS = 60 * 60 * 1000;
 
-/**
- * GET /api/account/export
- *
- * Returns everything Structura stores about the signed-in user as a
- * pretty-printed JSON download: profile, all guided sessions (with steps,
- * hints, confidence ratings, and retrospectives), all chats (with messages
- * and attachment metadata plus one-hour signed download links), and an AI
- * usage count summary.
- *
- * Served as Content-Disposition: attachment so the browser downloads the
- * file directly from a plain anchor on the settings page.
- */
 export async function GET() {
   const user = await getCurrentUser();
   if (!user) return apiError(401, "unauthorized");
 
-  const limit = checkCustomLimit(
+  const limit = await checkCustomLimit(
     `account-export:${user.id}`,
     EXPORTS_PER_HOUR,
     HOUR_MS,
@@ -41,7 +28,6 @@ export async function GET() {
   try {
     const { data, counts } = await buildAccountExport(user.id);
 
-    // Counts only, never content, per the audit redaction policy.
     logEvent("account_export", counts);
 
     return new Response(JSON.stringify(data, null, 2), {

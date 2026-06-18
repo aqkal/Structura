@@ -37,7 +37,7 @@ export type ChatViewInitial = {
 type ChatViewProps = {
   initial: ChatViewInitial;
   userId: string;
-  /** Display name from the server page; used to personalize the greeting. */
+
   userName?: string | null;
 };
 
@@ -53,7 +53,6 @@ const ALLOWED_TYPES = [
   "application/pdf",
 ];
 
-/** Composer prefills for the empty state. Socratic: invite, never answer. */
 const SUGGESTIONS = [
   {
     label: "A math problem",
@@ -75,40 +74,23 @@ type PendingFile = {
   status: "uploading" | "done" | "error";
   attachmentId?: string;
   previewUrl?: string;
-  /** Short human reason shown inline on failed chips. */
+
   errorReason?: string;
-  /** True when re-uploading the retained File can succeed. */
+
   canRetry?: boolean;
 };
 
 type StreamMode = "send" | "regenerate";
 
-/**
- * The server signals budget exhaustion as a 429 with error.code
- * "budget_exceeded", but streamPost only surfaces the message string, so
- * match on it. Non-streaming fetches check the code directly.
- */
 function isBudgetError(err: unknown): boolean {
   return err instanceof Error && /budget/i.test(err.message);
 }
 
-/** Grow the textarea with its content, capped so it never eats the view. */
 function autoSize(el: HTMLTextAreaElement) {
   el.style.height = "auto";
   el.style.height = `${Math.min(el.scrollHeight, 200)}px`;
 }
 
-/**
- * The conversation surface. Holds the message list, the composer, and the
- * streaming assistant reply. Works in two modes:
- *
- * - existing chat: chatId is set, messages may be prefilled.
- * - new chat: chatId starts null. The first attach or send creates the chat
- *   via POST /api/chat, streams on the same page, and only after the first
- *   exchange is persisted swaps the URL to /chat/{id} in place (same
- *   optional-catch-all route, so no remount) and tells the sidebar the
- *   generated title via an event.
- */
 export function ChatView({ initial, userName }: ChatViewProps) {
   const [chatId, setChatId] = useState<string | null>(initial.chatId);
   const [messages, setMessages] = useState<ChatMessage[]>(initial.messages);
@@ -133,29 +115,22 @@ export function ChatView({ initial, userName }: ChatViewProps) {
   const rootRef = useRef<HTMLDivElement | null>(null);
   const bottomRef = useRef<HTMLDivElement | null>(null);
   const scrollerRef = useRef<HTMLElement | null>(null);
-  /** True while the view is "pinned" to the bottom (within 80px). */
+
   const pinnedRef = useRef(true);
-  /** Latest streamed text, readable from abort/timeout handlers. */
+
   const streamTextRef = useRef("");
-  /** Last user message content, for the timeout retry path. */
+
   const lastUserContentRef = useRef("");
   const dragCounterRef = useRef(0);
-  // Track object URLs we create so we can revoke them on unmount and avoid
-  // leaking blobs. Mutating a ref (not reading during render) is fine.
+
   const objectUrlsRef = useRef<Set<string>>(new Set());
-  // True for the very first exchange of a chat that started with no
-  // messages. Drives the one-time navigation to /chat/{id} that surfaces
-  // the real URL and the AI-generated title once everything is persisted.
+
   const freshChatRef = useRef(initial.chatId === null);
-  // Ref mirror of chatId so async callbacks never read a stale closure.
+
   const chatIdRef = useRef<string | null>(initial.chatId);
 
   const streaming = streamMode !== null;
 
-  // Hydrate the saved model preference once on mount. Done in an effect so
-  // the server and first client render agree (no localStorage on the server).
-  // setState is deferred to a timeout so it does not run synchronously in the
-  // effect body (avoids the cascading-render lint rule).
   useEffect(() => {
     if (typeof window === "undefined") return;
     const saved = window.localStorage.getItem(MODEL_STORAGE_KEY);
@@ -164,7 +139,6 @@ export function ChatView({ initial, userName }: ChatViewProps) {
     return () => clearTimeout(t);
   }, []);
 
-  // Abort any in-flight stream and revoke object URLs on unmount.
   useEffect(() => {
     const urls = objectUrlsRef.current;
     return () => {
@@ -176,8 +150,6 @@ export function ChatView({ initial, userName }: ChatViewProps) {
     };
   }, []);
 
-  // Track whether the user is pinned to the bottom of the scroll pane.
-  // The scroll container is the AppShell <main>, found by proximity.
   useEffect(() => {
     const scroller = rootRef.current?.closest("main");
     if (!scroller) return;
@@ -193,8 +165,6 @@ export function ChatView({ initial, userName }: ChatViewProps) {
     return () => scroller.removeEventListener("scroll", onScroll);
   }, []);
 
-  // Follow new content only while pinned; otherwise surface the jump pill.
-  // behavior "auto" keeps streaming smooth (no smooth-scroll fighting).
   useEffect(() => {
     if (pinnedRef.current) {
       const scroller = scrollerRef.current;
@@ -209,7 +179,6 @@ export function ChatView({ initial, userName }: ChatViewProps) {
     return () => clearTimeout(t);
   }, [messages, streamingText]);
 
-  // Attaching files grows the composer; keep the bottom in view when pinned.
   useEffect(() => {
     if (!pinnedRef.current) return;
     const scroller = scrollerRef.current;
@@ -218,7 +187,6 @@ export function ChatView({ initial, userName }: ChatViewProps) {
     }
   }, [pendingFiles]);
 
-  // Autofocus the composer on mount.
   useEffect(() => {
     const t = setTimeout(() => textareaRef.current?.focus(), 0);
     return () => clearTimeout(t);
@@ -237,7 +205,6 @@ export function ChatView({ initial, userName }: ChatViewProps) {
     objectUrlsRef.current.delete(url);
   }
 
-  /** Read the AI budget headers exposed by the streaming routes. */
   const readBudgetHeaders = useCallback((headers: Headers) => {
     const used = Number(headers.get("x-ai-used"));
     const total = Number(headers.get("x-ai-budget"));
@@ -246,10 +213,6 @@ export function ChatView({ initial, userName }: ChatViewProps) {
     }
   }, []);
 
-  /**
-   * After an abort or timeout, keep whatever streamed so far as a finished
-   * assistant message instead of dropping it.
-   */
   const finalizePartial = useCallback(() => {
     const partial = streamTextRef.current;
     if (partial.length > 0) {
@@ -259,7 +222,6 @@ export function ChatView({ initial, userName }: ChatViewProps) {
     streamTextRef.current = "";
   }, []);
 
-  /** Regenerate variant: keep the partial if any, otherwise restore. */
   const restoreOrKeepPartial = useCallback((backup: ChatMessage) => {
     const partial = streamTextRef.current;
     setMessages((prev) => [
@@ -270,12 +232,6 @@ export function ChatView({ initial, userName }: ChatViewProps) {
     streamTextRef.current = "";
   }, []);
 
-  // First exchange of a brand-new chat: the user message, the reply, and
-  // the AI title are all persisted by now. /chat and /chat/{id} are the
-  // same optional-catch-all route, so promoting the URL is a plain
-  // history.replaceState: nothing remounts, nothing reloads. The sidebar
-  // (in the persistent section layout) learns the AI title via an event
-  // instead of a router refresh.
   const maybeRefreshFreshChat = useCallback(() => {
     if (!freshChatRef.current) return;
     const id = chatIdRef.current;
@@ -289,16 +245,9 @@ export function ChatView({ initial, userName }: ChatViewProps) {
           emitChatTitled({ id, title: data.title });
         }
       })
-      .catch(() => {
-        // Best effort; the next server render shows the title anyway.
-      });
+      .catch(() => {});
   }, []);
 
-  // "New chat" while this instance holds a promoted conversation: the
-  // new-chat page and the promoted view are the SAME mounted component
-  // (same route, same key), so navigation alone cannot reset it. When the
-  // URL returns to exactly /chat while we hold a chat id, reset to a
-  // clean slate ourselves.
   const pathname = usePathname();
   useEffect(() => {
     if (initial.chatId !== null) return;
@@ -327,13 +276,6 @@ export function ChatView({ initial, userName }: ChatViewProps) {
     return () => clearTimeout(t);
   }, [pathname, initial.chatId]);
 
-  /**
-   * Resolve the chat we should post into, creating it if we are still in
-   * new-chat mode. The URL is left alone until the first exchange finishes
-   * (see maybeRefreshFreshChat); only the sidebar learns about the new id
-   * right away. Deduped through a promise ref so concurrent attach + send
-   * cannot create two chats.
-   */
   function ensureChat(): Promise<string> {
     if (chatId !== null) return Promise.resolve(chatId);
     if (ensureChatPromiseRef.current) return ensureChatPromiseRef.current;
@@ -367,7 +309,6 @@ export function ChatView({ initial, userName }: ChatViewProps) {
     return creation;
   }
 
-  /** Upload one pending file and flip its status when it resolves. */
   async function uploadPending(targetChatId: string, pending: PendingFile) {
     const form = new FormData();
     form.append("file", pending.file);
@@ -397,7 +338,6 @@ export function ChatView({ initial, userName }: ChatViewProps) {
         ),
       );
     } catch (err) {
-      // Inline reason on the chip plus a retry button; no toast needed.
       setPendingFiles((prev) =>
         prev.map((p) =>
           p.localId === pending.localId
@@ -467,8 +407,6 @@ export function ChatView({ initial, userName }: ChatViewProps) {
       const targetChatId = await ensureChat();
       await Promise.all(accepted.map((p) => uploadPending(targetChatId, p)));
     } catch (err) {
-      // Chat creation failed: keep the chips and their Files so the student
-      // can retry without re-picking everything.
       const ids = new Set(accepted.map((p) => p.localId));
       setPendingFiles((prev) =>
         prev.map((p) =>
@@ -490,7 +428,6 @@ export function ChatView({ initial, userName }: ChatViewProps) {
     }
   }
 
-  /** Re-upload a failed chip, reusing the retained File. */
   async function retryPending(localId: string) {
     const target = pendingFiles.find((p) => p.localId === localId);
     if (!target || target.status !== "error" || !target.canRetry) return;
@@ -531,7 +468,6 @@ export function ChatView({ initial, userName }: ChatViewProps) {
 
   const uploading = pendingFiles.some((p) => p.status === "uploading");
 
-  /** Core send path, shared by the composer and the timeout retry. */
   async function sendMessage(content: string) {
     if (streamInFlightRef.current) return;
     streamInFlightRef.current = true;
@@ -568,7 +504,6 @@ export function ChatView({ initial, userName }: ChatViewProps) {
     setPendingFiles([]);
     lastUserContentRef.current = content;
 
-    // Sending snaps the view back to the newest message.
     pinnedRef.current = true;
     setShowJump(false);
 
@@ -576,7 +511,6 @@ export function ChatView({ initial, userName }: ChatViewProps) {
     abortRef.current = controller;
 
     try {
-      // In new-chat mode without a prior attach, create the chat now.
       const id = await ensureChat();
 
       const { text } = await streamPost(
@@ -594,14 +528,11 @@ export function ChatView({ initial, userName }: ChatViewProps) {
       setStreamingText("");
       streamTextRef.current = "";
 
-      // Optimistic previews are no longer needed; the sent attachments are
-      // now reachable through the GET route, so free the object URLs.
       for (const p of sentFiles) revokeUrl(p.previewUrl);
 
       maybeRefreshFreshChat();
     } catch (err) {
       if (err instanceof DOMException && err.name === "AbortError") {
-        // The student pressed Stop: keep the partial reply and settle.
         finalizePartial();
         for (const p of sentFiles) revokeUrl(p.previewUrl);
         maybeRefreshFreshChat();
@@ -613,8 +544,7 @@ export function ChatView({ initial, userName }: ChatViewProps) {
         setTimedOut(true);
         return;
       }
-      // Roll back the optimistic user bubble and restore the input and the
-      // pending files so the student does not lose what they typed or picked.
+
       setMessages((prev) => {
         const next = [...prev];
         if (next.length > 0 && next[next.length - 1].role === "user") {
@@ -646,11 +576,6 @@ export function ChatView({ initial, userName }: ChatViewProps) {
     await sendMessage(content);
   }
 
-  /**
-   * Re-stream the last assistant reply. The server deletes its copy first
-   * (409 if the trailing message is not an assistant one), so the local
-   * bubble is swapped for the typing indicator while the new reply streams.
-   */
   const regenerate = useCallback(async () => {
     if (streamInFlightRef.current || chatId === null) return;
     const last = messages[messages.length - 1];
@@ -693,7 +618,7 @@ export function ChatView({ initial, userName }: ChatViewProps) {
         setTimedOut(true);
         return;
       }
-      // Put the old reply back; 409s and other failures land here.
+
       setMessages((prev) => [...prev, backup]);
       setStreamingText("");
       streamTextRef.current = "";
@@ -709,10 +634,6 @@ export function ChatView({ initial, userName }: ChatViewProps) {
     }
   }, [chatId, messages, readBudgetHeaders, restoreOrKeepPartial]);
 
-  /**
-   * Edit-and-resend: roll back the trailing user message (and any reply
-   * after it) server-side, put its text back into the composer, focus it.
-   */
   const editLastUser = useCallback(async () => {
     if (streamInFlightRef.current || chatId === null) return;
     try {
@@ -754,11 +675,6 @@ export function ChatView({ initial, userName }: ChatViewProps) {
     }
   }, [chatId]);
 
-  /**
-   * Retry after an idle timeout. If a (possibly partial) assistant reply is
-   * the trailing message, regenerate replaces it. Otherwise roll back the
-   * orphaned user message server-side and resend the same content.
-   */
   async function retryAfterTimeout() {
     if (streamInFlightRef.current) return;
     setTimedOut(false);
@@ -777,9 +693,7 @@ export function ChatView({ initial, userName }: ChatViewProps) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({}),
       });
-    } catch {
-      // Best effort cleanup; resend regardless.
-    }
+    } catch {}
     setMessages((prev) => {
       const next = [...prev];
       while (next.length > 0 && next[next.length - 1].role === "assistant") {
@@ -831,8 +745,6 @@ export function ChatView({ initial, userName }: ChatViewProps) {
     void handleFilesPicked(files);
   }
 
-  // Drag-and-drop with the counter pattern so nested dragenter/dragleave
-  // pairs do not flicker the overlay.
   function hasFiles(e: React.DragEvent) {
     return Array.from(e.dataTransfer.types).includes("Files");
   }
@@ -1004,7 +916,7 @@ export function ChatView({ initial, userName }: ChatViewProps) {
                 aria-busy="true"
               >
                 <div className="font-semibold tracking-[0.18em] text-[color:var(--lavender-800)] text-[var(--text-2xs)] uppercase">
-                  Structura
+                  Qualia
                 </div>
                 <AnimatePresence mode="wait" initial={false}>
                   {streamingText.length > 0 ? (
@@ -1156,7 +1068,7 @@ export function ChatView({ initial, userName }: ChatViewProps) {
                 className="hidden"
                 onChange={(e) => {
                   void handleFilesPicked(e.target.files);
-                  // Reset so picking the same file again re-fires onChange.
+
                   e.target.value = "";
                 }}
               />
@@ -1194,7 +1106,7 @@ export function ChatView({ initial, userName }: ChatViewProps) {
                 onPaste={handlePaste}
                 rows={1}
                 placeholder="Ask, or tell me what you're stuck on."
-                aria-label="Message Structura"
+                aria-label="Message Qualia"
                 className="max-h-[200px] min-h-[2.5rem] flex-1 resize-none bg-transparent px-3 py-2 text-[16px] text-[color:var(--color-ink)] placeholder:text-[color:var(--color-ink-subtle)] focus:outline-none sm:text-[var(--text-sm)]"
               />
               <motion.button

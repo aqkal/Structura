@@ -6,18 +6,6 @@ declare global {
   var __structuraDbClient: ReturnType<typeof postgres> | undefined;
 }
 
-/**
- * Server-only Drizzle client backed by postgres.js.
- *
- * Pooler vs direct:
- *   - For app queries use the Supabase **Transaction pooler** URL.
- *     It's compatible with serverless and short-lived connections.
- *   - For migrations (drizzle-kit), use the direct connection string.
- *     The pooler closes prepared statements between transactions which
- *     breaks DDL.
- *
- * We cache the client on globalThis to survive Next.js dev hot-reloads.
- */
 const connectionString =
   process.env.DATABASE_URL ??
   (() => {
@@ -30,7 +18,7 @@ const connectionString =
 const client =
   globalThis.__structuraDbClient ??
   postgres(connectionString, {
-    prepare: false, // required for Supabase transaction pooler
+    prepare: false,
     max: 10,
   });
 

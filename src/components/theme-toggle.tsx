@@ -99,7 +99,7 @@ export function ThemeToggle({
               <motion.span
                 layoutId={`theme-toggle-pill-${instanceId}`}
                 transition={springSnappy}
-                className="absolute inset-0 rounded-full bg-white/85 shadow-[var(--shadow-glass)]"
+                className="absolute inset-0 rounded-full bg-white/85"
               />
             )}
             <span className="relative inline-flex items-center gap-1.5">

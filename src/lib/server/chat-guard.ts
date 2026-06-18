@@ -12,14 +12,6 @@ export type ChatGuardOk = {
 
 export type ChatGuardFail = { ok: false; response: NextResponse };
 
-/**
- * Auth + ownership gate for chat-scoped route handlers.
- *
- * - No signed-in user: 401 unauthorized.
- * - Malformed uuid, missing chat, or a chat owned by someone else: 404
- *   not_found. We never answer 403, so callers cannot probe whether a
- *   given chat id exists.
- */
 export async function guardChat(
   chatId: string,
 ): Promise<ChatGuardOk | ChatGuardFail> {

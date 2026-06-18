@@ -3,7 +3,6 @@ import { redirect } from "next/navigation";
 import { HeroItem, HeroReveal } from "@/components/onboarding/hero-reveal";
 import { getSampleProblem } from "@/components/onboarding/sample-data";
 import { getCurrentUser } from "@/lib/auth";
-import { listSubjects } from "@/lib/server/sessions";
 
 import { NewSessionForm } from "./new-session-form";
 
@@ -19,8 +18,6 @@ export default async function NewSessionPage({
   const sampleKey = typeof sample === "string" ? sample : undefined;
   const preset = getSampleProblem(sampleKey);
 
-  const subjects = await listSubjects();
-
   return (
     <div className="mx-auto w-full max-w-[720px]">
       <HeroReveal>
@@ -34,15 +31,14 @@ export default async function NewSessionPage({
                 What are you working on?
               </h1>
               <p className="leading-relaxed text-[color:var(--color-ink-muted)] text-[var(--text-sm)]">
-                Write the problem in plain language. Structura guides your
+                Write the problem in plain language. Qualia guides your
                 thinking, it never solves it for you.
               </p>
             </header>
 
             <NewSessionForm
-              subjects={subjects}
-              initialProblem={preset?.problem}
-              initialSubjectSlug={preset?.subjectSlug}
+              initialTopic={preset?.problem}
+              initialIntention={preset?.intention}
             />
           </div>
         </HeroItem>

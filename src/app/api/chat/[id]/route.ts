@@ -5,14 +5,6 @@ import { apiError } from "@/lib/server/api-error";
 import { guardChat } from "@/lib/server/chat-guard";
 import { deleteChat, renameChat } from "@/lib/server/chats";
 
-/**
- * GET    /api/chat/{id} -> chat metadata. 200 { id, title }.
- * PATCH  /api/chat/{id} -> rename the chat. 200 { ok: true }.
- * DELETE /api/chat/{id} -> delete the chat.  200 { ok: true }.
- *
- * All are auth + ownership gated by guardChat, which answers 401 when no
- * user is signed in and 404 for a missing, malformed, or unowned chat id.
- */
 const renameInput = z.object({
   title: z.string().trim().min(1).max(80),
 });

@@ -1,7 +1,9 @@
 import { notFound, redirect } from "next/navigation";
 
+import { isIntentionKey, DEFAULT_INTENTION } from "@/lib/guided";
 import { getCurrentUser } from "@/lib/auth";
-import { getSessionState } from "@/lib/server/sessions";
+import type { ProofSummary } from "@/lib/server/ai/guided";
+import { getGuidedState } from "@/lib/server/sessions";
 import { SessionView, type SessionInitial } from "./session-view";
 
 export default async function SessionPage({
@@ -13,34 +15,31 @@ export default async function SessionPage({
   const user = await getCurrentUser();
   if (!user) redirect(`/auth/sign-in?next=/session/${id}`);
 
-  const state = await getSessionState(id, user.id);
+  const state = await getGuidedState(id, user.id);
   if (!state) notFound();
+
+  const intention = isIntentionKey(state.session.intention)
+    ? state.session.intention
+    : DEFAULT_INTENTION;
 
   const initial: SessionInitial = {
     session: {
       id: state.session.id,
-      problemText: state.session.problemText,
-      subjectSlug: state.session.subjectSlug,
-      scaffoldMode: state.session.scaffoldMode,
+      topic: state.session.problemText,
+      intention,
       status: state.session.status,
       totalSteps: state.session.totalSteps,
-      currentStep: state.session.currentStep,
-      hintsUsed: state.session.hintsUsed,
-      rewrites: state.session.rewrites,
+      pasted: state.session.pasted,
+      summary: (state.session.summary as ProofSummary | null) ?? null,
       startedAt: state.session.startedAt.toISOString(),
-      endedAt: state.session.endedAt?.toISOString() ?? null,
       elapsedSeconds: state.session.elapsedSeconds,
     },
-    steps: state.steps.map((s) => ({
+    moves: state.steps.map((s) => ({
       stepNum: s.stepNum,
+      kind: s.kind,
       question: s.question,
-      userResponse: s.userResponse,
-      aiFeedback: s.aiFeedback,
-      completedAt: s.completedAt?.toISOString() ?? null,
-      revisionCount: s.revisionCount,
+      answer: s.userResponse,
     })),
-    hintsByStep: state.hintsByStep,
-    confidence: state.confidence,
   };
 
   return <SessionView key={initial.session.id} initial={initial} />;

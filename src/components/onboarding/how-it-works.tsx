@@ -33,7 +33,7 @@ export function HowItWorks() {
           <Card
             num={2}
             title="Reason in five steps"
-            desc="Structura asks, you think. What do you know, where is it hard, try it, find the principle, teach it back. Hints only when you ask, answers never."
+            desc="Qualia asks, you think. What do you know, where is it hard, try it, find the principle, teach it back. Hints only when you ask, answers never."
             visual={<FiveSteps />}
           />
           <Card
@@ -157,7 +157,7 @@ function ModeSwitchDemo() {
   return (
     <div className="relative flex h-9 w-full max-w-[220px] items-center rounded-[var(--radius-pill)] border border-[color:var(--border-soft)] bg-white/45 p-1">
       <motion.span
-        className="absolute top-1 bottom-1 left-1 w-[calc(50%-4px)] rounded-[var(--radius-pill)] bg-white/90 shadow-[var(--shadow-glass)]"
+        className="absolute top-1 bottom-1 left-1 w-[calc(50%-4px)] rounded-[var(--radius-pill)] bg-white/90"
         variants={{
           hidden: { x: "0%" },
           visible: {

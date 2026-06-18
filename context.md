@@ -1,14 +1,16 @@
-# Structura. Project context
+# Qualia. Project context
 
-Structura is a Socratic AI tutoring app for students. It guides reasoning
-with questions, hints only when asked, and never gives the answer. Two
-modes, switchable from the nav:
+Qualia is a Socratic AI tutoring app for students. It guides reasoning
+with questions and never gives the answer. Two modes, switchable from the
+nav:
 
-- **Guided** (`/session/*`): a structured 5-step scaffold. Enter a problem,
-  pick a subject and scaffold style, then work through five reasoning steps,
-  each with a streamed question, your written response, and streamed
-  non-revealing feedback. Confidence is captured at start, mid, and end;
-  finishing shows stats, a confidence delta, and an optional reflection.
+- **Guided** (`/session/*`): the student enters a topic and picks a goal
+  (strengthen an argument, dive deep, or shape a research question). Each
+  goal is a short playbook of typed thinking moves. Qualia generates one
+  move at a time, the student answers, and after at least three answered
+  moves the session can end. Ending produces a proof card that records the
+  position the student defended and what they worked out, alongside a
+  visual thinking map. Proof cards collect in a portfolio and export to PDF.
 - **Chat** (`/chat/*`): a free-form Socratic tutor with streaming replies,
   a recency-grouped sidebar, AI-generated titles, model switching, and
   image/PDF upload.
@@ -50,6 +52,8 @@ is the full policy and launch checklist.
 
 ## State
 
-Works end to end on localhost against live Gemini. Not deployed; Sentry,
-distributed rate limiting, CSP hardening, and CI are deferred to launch.
-GDPR self-serve export and account deletion are built (Settings page).
+Runs end to end on localhost against live Supabase and Gemini. Rate limiting
+is distributed (Postgres-backed) and CI runs typecheck, lint, and build on
+every push. GDPR self-serve export and account deletion are built into the
+Settings page. Remaining launch work (error monitoring, nonce-based CSP) is
+tracked in `SECURITY.md`.

@@ -9,19 +9,8 @@ import { rollbackLastUserMessage } from "@/lib/server/chats";
 import { checkCustomLimit } from "@/lib/server/rate-limit";
 import { createClient } from "@/lib/supabase/server";
 
-/** Rollbacks a single user may request per minute. */
 const ROLLBACKS_PER_MINUTE = 20;
 
-/**
- * POST /api/chat/{id}/rollback
- *
- * Edit-and-resend support: in one transaction, deletes the chat's last
- * user message, every assistant message after it, and its attachment
- * rows (FK cascade), then clears the matching storage objects best
- * effort. Returns the deleted user text so the client can refill the
- * composer. No AI call, no budget use. 409 when the chat holds no user
- * message.
- */
 const rollbackInput = z.object({});
 
 export async function POST(
@@ -34,14 +23,13 @@ export async function POST(
   const { user } = guard;
 
   const raw: unknown = await req.json().catch(() => null);
-  // The body carries no fields; an empty body is fine too.
+
   const parsed = rollbackInput.safeParse(raw ?? {});
   if (!parsed.success) {
     return apiError(400, "bad_request", "Invalid request body.");
   }
 
-  // Per-user limit, mirroring the message route's bucket style.
-  const limit = checkCustomLimit(
+  const limit = await checkCustomLimit(
     `chatrollback:${user.id}`,
     ROLLBACKS_PER_MINUTE,
   );
@@ -60,8 +48,6 @@ export async function POST(
     );
   }
 
-  // Best-effort storage cleanup with the user's own session client;
-  // failures are logged inside the helper and never block the rollback.
   if (result.attachmentPaths.length > 0) {
     const supabase = await createClient();
     await removeStorageObjects(supabase, result.attachmentPaths);

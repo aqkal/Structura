@@ -1,7 +1,7 @@
 "use client";
 
 export function Thinking({
-  label = "Structura is reading your reasoning",
+  label = "Qualia is reading your reasoning",
 }: {
   label?: string;
 }) {

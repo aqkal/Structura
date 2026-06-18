@@ -9,41 +9,18 @@ import { checkCustomLimit } from "@/lib/server/rate-limit";
 import { getAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
-/** Delete attempts a single user may make per hour. */
 const DELETES_PER_HOUR = 3;
 const HOUR_MS = 60 * 60 * 1000;
 
-/**
- * The client repeats the typed confirmation so a stray fetch can never
- * delete an account by accident.
- */
 const deleteAccountInput = z.object({
   confirm: z.literal("delete"),
 });
 
-/**
- * POST /api/account/delete
- *
- * Permanently deletes the signed-in user's account. Stage order matters:
- *
- *   1. Storage: remove every object under "{userId}/..." in chat-uploads
- *      using the service-role client (the single sanctioned admin-job use
- *      per SECURITY.md). Runs first so a mid-way failure leaves the
- *      account intact and fully retryable.
- *   2. DB: delete the users row; FK cascades clear sessions, steps, hints,
- *      confidence ratings, retrospectives, chats, messages, attachment
- *      rows, scheduled tasks, and usage events.
- *   3. Auth: remove the auth.users record via the admin client.
- *   4. Sign out with the user's own client so the auth cookies are cleared.
- *
- * Every stage tolerates already-deleted state, so a retry after a mid-way
- * failure finishes the remaining stages instead of erroring.
- */
 export async function POST(req: NextRequest) {
   const user = await getCurrentUser();
   if (!user) return apiError(401, "unauthorized");
 
-  const limit = checkCustomLimit(
+  const limit = await checkCustomLimit(
     `account-delete:${user.id}`,
     DELETES_PER_HOUR,
     HOUR_MS,
@@ -62,8 +39,6 @@ export async function POST(req: NextRequest) {
 
   const admin = getAdminClient();
 
-  // Stage 1: storage. An empty or already-purged folder removes zero
-  // objects and succeeds, so retries pass straight through.
   let removedObjects = 0;
   try {
     removedObjects = await purgeUserStorage(admin, user.id);
@@ -80,8 +55,6 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // Stage 2: DB row + cascades. Returns false if a previous attempt
-  // already removed it; that is fine.
   try {
     const dbRowDeleted = await deleteUserRow(user.id);
     logEvent("account_delete_db", { dbRowDeleted });
@@ -97,7 +70,6 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // Stage 3: auth user. A 404 means a previous attempt already removed it.
   try {
     const { error } = await admin.auth.admin.deleteUser(user.id);
     if (error && error.status !== 404) {
@@ -116,14 +88,10 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // Stage 4: clear the auth cookies. Best effort: the auth user is gone,
-  // so even if sign-out fails the session is dead on the next request.
   try {
     const supabase = await createClient();
     await supabase.auth.signOut();
-  } catch {
-    // Tolerated: cookies for a deleted user cannot authenticate anything.
-  }
+  } catch {}
 
   logEvent("account_deleted", { removedObjects });
   return Response.json({ ok: true });

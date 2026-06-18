@@ -99,7 +99,7 @@ export function MobileBottomBar() {
                 <motion.span
                   layoutId="bottom-bar-active"
                   aria-hidden="true"
-                  className="absolute inset-x-3 inset-y-1.5 rounded-full bg-white/70 shadow-[var(--shadow-glass)]"
+                  className="absolute inset-x-3 inset-y-1.5 rounded-full bg-white/70"
                   transition={springSnappy}
                 />
               )}

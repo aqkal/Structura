@@ -8,10 +8,6 @@ import {
 } from "./provider";
 import { renderPrompt } from "./prompts";
 
-/* ------------------------------------------------------------------
-   Types
-   ------------------------------------------------------------------ */
-
 export type ChatFilePart = { data: Uint8Array; mediaType: string };
 
 export type ChatTurn = {
@@ -32,35 +28,16 @@ export type ChatStreamCallbacks = {
   onFinish?: (info: ChatFinishInfo) => Promise<void> | void;
 };
 
-/**
- * Validate a requested chat model id against the allowlist, returning the
- * id that will actually be used. Exposed so the route can record the same
- * model string we bill and report under.
- */
 export function resolveChatModel(model?: string): ChatModelId {
   return model !== undefined && isChatModelId(model)
     ? model
     : DEFAULT_CHAT_MODEL;
 }
 
-/**
- * Gemini 2.5 models think by default, and thought tokens count against
- * maxOutputTokens. Chat turns are short Socratic nudges; thinking adds
- * latency and silently eats the token caps. Disable it for every call.
- */
 const NO_THINKING = {
   google: { thinkingConfig: { thinkingBudget: 0 } },
 } as const;
 
-/* ------------------------------------------------------------------
-   History windowing. Long conversations are capped before they reach
-   the model: only the most recent turns are sent, with one synthetic
-   note standing in for everything older. This bounds token growth in
-   long chats. Only the model input is trimmed; the DB always keeps
-   the full conversation.
-   ------------------------------------------------------------------ */
-
-/** Most recent conversation turns sent to the model per reply. */
 const MAX_HISTORY_MESSAGES = 30;
 
 function windowHistory(history: ChatTurn[]): ChatTurn[] {
@@ -70,15 +47,6 @@ function windowHistory(history: ChatTurn[]): ChatTurn[] {
     ...history.slice(-MAX_HISTORY_MESSAGES),
   ];
 }
-
-/* ------------------------------------------------------------------
-   Streaming chat reply (chat loop). Caller invokes .toTextStreamResponse().
-
-   SECURITY INVARIANT: the system prompt is rendered only from safe,
-   app-controlled content (chat.md, no interpolation). Everything the
-   student wrote travels in user-role messages, which the prompt treats
-   as untrusted data.
-   ------------------------------------------------------------------ */
 
 export function streamChatReply(
   history: ChatTurn[],
@@ -90,8 +58,6 @@ export function streamChatReply(
     model: getModelById(modelId),
     system: renderPrompt("chat", {}),
     messages: windowHistory(history).map((turn) => {
-      // Only user turns carry files. When present, the message content
-      // becomes a parts array: the text first, then each file part.
       if (turn.files && turn.files.length > 0) {
         return {
           role: turn.role,
@@ -123,25 +89,12 @@ export function streamChatReply(
   });
 }
 
-/* ------------------------------------------------------------------
-   Chat title generation. One short, deterministic completion.
-   ------------------------------------------------------------------ */
-
-/**
- * Last-resort title derived from the student's own words, so a chat never
- * stays "New chat" just because the title model was unavailable.
- */
 function fallbackTitle(firstUserMessage: string): string {
   const condensed = firstUserMessage.replace(/\s+/g, " ").trim();
   const words = condensed.split(" ").slice(0, 6).join(" ").slice(0, 48).trim();
   return words.length > 0 ? words : "New chat";
 }
 
-/**
- * Name the conversation with the SAME model the student is chatting with
- * (their picker choice), so the title voice matches the conversation. Falls
- * back to a text-derived title if that model is unavailable.
- */
 export async function generateChatTitle(
   firstUserMessage: string,
   modelId: string = DEFAULT_CHAT_MODEL,

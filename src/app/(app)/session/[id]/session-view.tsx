@@ -1,785 +1,537 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
 import { toast } from "sonner";
 
-import { ActiveStep, type SaveState } from "@/components/session/active-step";
-import { ModelSelect } from "@/components/chat/model-select";
 import { Completion } from "@/components/session/completion";
-import { ConfidenceGate } from "@/components/session/confidence-track";
-import { SessionPanel } from "@/components/session/session-panel";
-import { StepBlock } from "@/components/session/step-block";
-import { StepProgress } from "@/components/session/step-progress";
-import { Thinking } from "@/components/session/thinking";
+import { ThinkingMap } from "@/components/session/thinking-map";
+import { ModelSelect } from "@/components/chat/model-select";
+import { Markdown } from "@/components/render/markdown";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   DEFAULT_CHAT_MODEL,
   isChatModelId,
   type ChatModelId,
 } from "@/lib/chat-models";
-import { streamPost, StreamTimeoutError } from "@/lib/stream";
+import {
+  INTENTIONS,
+  MIN_MOVES_BEFORE_END,
+  MOVE_LABEL,
+  type IntentionKey,
+  type MoveKind,
+} from "@/lib/guided";
+import type { ProofSummary } from "@/lib/server/ai/guided";
+import { fadeUp } from "@/lib/motion";
+import { cn } from "@/lib/utils";
 
-const MODEL_STORAGE_KEY = "structura-session-model";
-
-export type SSession = {
-  id: string;
-  problemText: string;
-  subjectSlug: string;
-  scaffoldMode: "guided" | "questions_only" | "with_examples";
-  status: "active" | "completed" | "abandoned";
-  totalSteps: number;
-  currentStep: number;
-  hintsUsed: number;
-  rewrites: number;
-  startedAt: string;
-  endedAt: string | null;
-  elapsedSeconds: number;
-};
-
-export type SStep = {
+export type SMove = {
   stepNum: number;
+  kind: string | null;
   question: string;
-  userResponse: string | null;
-  aiFeedback: string | null;
-  completedAt: string | null;
-  revisionCount: number;
+  answer: string | null;
 };
 
 export type SessionInitial = {
-  session: SSession;
-  steps: SStep[];
-  hintsByStep: Record<number, string[]>;
-  confidence: { start?: number; mid?: number; end?: number };
+  session: {
+    id: string;
+    topic: string;
+    intention: IntentionKey;
+    status: "active" | "completed" | "abandoned";
+    totalSteps: number;
+    pasted: boolean;
+    summary: ProofSummary | null;
+    startedAt: string;
+    elapsedSeconds: number;
+  };
+  moves: SMove[];
 };
 
-type Phase =
-  | "gate-start"
-  | "loading-question"
-  | "answering"
-  | "streaming-feedback"
-  | "gate-mid"
-  | "gate-end"
-  | "completing"
-  | "done"
-  | "error-question";
+type Phase = "loading-move" | "answering" | "ending" | "done" | "error";
 
-type ConfidencePoint = "start" | "mid" | "end";
-
-const GATE_PROMPTS: Record<ConfidencePoint, string> = {
-  start: "Before you begin, how confident do you feel about this problem?",
-  mid: "Quick checkpoint. How confident do you feel now?",
-  end: "Last check. How confident are you that you could explain this to someone else?",
-};
-
-const STREAM_IDLE_MS = 30000;
-
-function completedOf(steps: SStep[]): SStep[] {
-  return steps.filter((s) => s.completedAt !== null);
+function moveLabel(kind: string | null): string {
+  return kind && kind in MOVE_LABEL
+    ? MOVE_LABEL[kind as MoveKind]
+    : "Your move";
 }
 
-function pendingOf(steps: SStep[]): SStep | null {
-  return steps.find((s) => s.completedAt === null) ?? null;
-}
-
-function deriveInitialPhase(initial: SessionInitial): Phase {
-  const { session, steps, confidence } = initial;
-  if (session.status === "completed") return "done";
-  if (confidence.start === undefined) return "gate-start";
-  if (pendingOf(steps)) return "answering";
-  const done = completedOf(steps).length;
-  if (done >= session.totalSteps) {
-    return confidence.end === undefined ? "gate-end" : "completing";
+function friendlyError(err: unknown, fallback: string): string {
+  if (err instanceof DOMException && err.name === "TimeoutError") {
+    return "That took too long. Please try again.";
   }
-  if (done === 2 && confidence.mid === undefined) return "gate-mid";
-  return "loading-question";
+  return err instanceof Error ? err.message : fallback;
 }
 
 export function SessionView({ initial }: { initial: SessionInitial }) {
   const session = initial.session;
-  const sessionUrl = `/api/session/${session.id}`;
-  const startedAtMs = new Date(session.startedAt).getTime();
+  const url = `/api/session/${session.id}`;
+  const total = session.totalSteps;
+  const intention = INTENTIONS[session.intention];
 
-  const [phase, setPhase] = useState<Phase>(() => deriveInitialPhase(initial));
-  const [steps, setSteps] = useState<SStep[]>(initial.steps);
-  const [hintsByStep, setHintsByStep] = useState<Record<number, string[]>>(
-    initial.hintsByStep,
-  );
-  const [confidence, setConfidence] = useState(initial.confidence);
-  const [hintsUsed, setHintsUsed] = useState(session.hintsUsed);
-  const [rewrites, setRewrites] = useState(session.rewrites);
-
+  const [moves, setMoves] = useState<SMove[]>(initial.moves);
   const [draft, setDraft] = useState("");
-  const [streamedQuestion, setStreamedQuestion] = useState("");
-  const [streamingFeedback, setStreamingFeedback] = useState("");
-  const [streamingHint, setStreamingHint] = useState<string | null>(null);
-  const [hintBusy, setHintBusy] = useState(false);
-  const [gateBusy, setGateBusy] = useState(false);
-  const [completion, setCompletion] = useState<{
-    elapsedSeconds: number;
-    deepSession: boolean;
-  } | null>(null);
-  const [completeError, setCompleteError] = useState(false);
-  const [questionError, setQuestionError] = useState<string | null>(null);
-
-  const [saveState, setSaveState] = useState<SaveState>("idle");
-  const [staleDraft, setStaleDraft] = useState(false);
-  const [model, setModel] = useState<ChatModelId>(DEFAULT_CHAT_MODEL);
-  const [aiUsage, setAiUsage] = useState<{
-    used: number;
-    budget: number;
-  } | null>(null);
-
-  // Live clock for the timer pill and panel.
-  const [nowMs, setNowMs] = useState(() => Date.now());
-
-  const [submittedDraft, setSubmittedDraft] = useState("");
-
-  const questionInFlight = useRef(false);
-  const completeInFlight = useRef(false);
-  const submitInFlight = useRef(false);
-  const tryAgainInFlight = useRef(false);
-  const lastSavedRef = useRef("");
-  const saveFailuresRef = useRef(0);
-  const abortRef = useRef<AbortController | null>(null);
-  const hintAbortRef = useRef<AbortController | null>(null);
-  const stoppedByUserRef = useRef(false);
-  // Read inside async callbacks so streams always use the latest pick.
-  const modelRef = useRef<ChatModelId>(DEFAULT_CHAT_MODEL);
-
-  const completed = completedOf(steps);
-  const pending = pendingOf(steps);
-  const activeStepNum = pending?.stepNum ?? completed.length + 1;
-  const draftKey = `structura-draft-${session.id}-${activeStepNum}`;
-
-  const elapsedSeconds =
-    phase === "done"
-      ? (completion?.elapsedSeconds ?? session.elapsedSeconds)
-      : Math.max(0, Math.floor((nowMs - startedAtMs) / 1000));
-  const deepSession =
-    phase === "done"
-      ? (completion?.deepSession ?? session.elapsedSeconds >= 2700)
-      : elapsedSeconds >= 2700;
-
-  /* ── shared stream options: idle timeout + budget headers ─ */
-  const readBudgetHeaders = useCallback((headers: Headers) => {
-    const used = Number(headers.get("x-ai-used"));
-    const budget = Number(headers.get("x-ai-budget"));
-    if (Number.isFinite(used) && Number.isFinite(budget) && budget > 0) {
-      setAiUsage({ used, budget });
+  const [phase, setPhase] = useState<Phase>(() => {
+    if (session.status === "completed") return "done";
+    const last = initial.moves[initial.moves.length - 1];
+    if (!initial.moves.length || (last && last.answer !== null)) {
+      return initial.moves.length >= total ? "ending" : "loading-move";
     }
-  }, []);
+    return "answering";
+  });
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [pasted, setPasted] = useState(session.pasted);
+  const [busy, setBusy] = useState(false);
+  const [completion, setCompletion] = useState<{
+    summary: ProofSummary;
+    elapsedSeconds: number;
+  } | null>(
+    session.summary
+      ? { summary: session.summary, elapsedSeconds: session.elapsedSeconds }
+      : null,
+  );
 
-  /* ── timer ─────────────────────────────────────────────── */
-  useEffect(() => {
-    if (phase === "done") return;
-    const t = setInterval(() => setNowMs(Date.now()), 1000);
-    return () => clearInterval(t);
-  }, [phase]);
+  const router = useRouter();
+  const moveInFlight = useRef(false);
+  const endInFlight = useRef(false);
+  const pastedRef = useRef(session.pasted);
 
-  /* ── abort in-flight streams on unmount ────────────────── */
-  useEffect(() => {
-    return () => {
-      abortRef.current?.abort();
-      hintAbortRef.current?.abort();
-    };
-  }, []);
-
-  /* ── restore the model pick for guided streams ─────────── */
+  const [model, setModel] = useState<ChatModelId>(DEFAULT_CHAT_MODEL);
+  const modelRef = useRef<ChatModelId>(DEFAULT_CHAT_MODEL);
   useEffect(() => {
     const t = setTimeout(() => {
-      const stored = localStorage.getItem(MODEL_STORAGE_KEY);
-      if (isChatModelId(stored)) {
-        modelRef.current = stored;
-        setModel(stored);
+      const saved = localStorage.getItem("structura-session-model");
+      if (isChatModelId(saved)) {
+        modelRef.current = saved;
+        setModel(saved);
       }
     }, 0);
     return () => clearTimeout(t);
   }, []);
-
   function changeModel(id: ChatModelId) {
     modelRef.current = id;
     setModel(id);
     try {
-      localStorage.setItem(MODEL_STORAGE_KEY, id);
+      localStorage.setItem("structura-session-model", id);
     } catch {
-      // Storage may be unavailable; the pick still applies this visit.
+      void 0;
     }
   }
 
-  /* ── one-time draft restore on mount: DB copy, then local ─ */
   useEffect(() => {
-    const t = setTimeout(() => {
-      setDraft((current) => {
-        if (current.length > 0) return current;
-        const p = pendingOf(initial.steps);
-        if (!p) return current;
-        const fromLocal = localStorage.getItem(
-          `structura-draft-${initial.session.id}-${p.stepNum}`,
-        );
-        return p.userResponse ?? fromLocal ?? "";
-      });
-    }, 0);
+    if (initial.moves.length > 0) return;
+    const t = setTimeout(() => router.refresh(), 0);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  /* ── autosave: localStorage on keystroke, server every 3s ─ */
+  const answered = moves.filter((m) => m.answer !== null);
+  const pending = moves.find((m) => m.answer === null) ?? null;
+  const completedCount = answered.length;
+  const canEnd = completedCount >= MIN_MOVES_BEFORE_END;
+  const lastAnswered = answered[answered.length - 1] ?? null;
+  const draftKey = `qualia-draft-${session.id}-${pending?.stepNum ?? "x"}`;
+
   useEffect(() => {
-    if (phase !== "answering" || !pending) return;
-    if (typeof window !== "undefined") {
+    if (!pending) return;
+    const t = setTimeout(() => {
+      const saved = localStorage.getItem(
+        `qualia-draft-${session.id}-${pending.stepNum}`,
+      );
+      if (saved) setDraft((d) => (d.length === 0 ? saved : d));
+    }, 0);
+    return () => clearTimeout(t);
+  }, [pending?.stepNum]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (pending && draft.length > 0) {
       localStorage.setItem(draftKey, draft);
     }
-    const t = setTimeout(() => {
-      if (draft === lastSavedRef.current || draft.trim().length === 0) return;
-      lastSavedRef.current = draft;
-      setSaveState("saving");
-      fetch(`${sessionUrl}/draft`, {
+  }, [draft, draftKey, pending]);
+
+  const loadMove = useCallback(async () => {
+    if (moveInFlight.current) return;
+    moveInFlight.current = true;
+    setErrorMsg(null);
+    try {
+      const res = await fetch(`${url}/move`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ stepNum: pending.stepNum, text: draft }),
-      })
-        .then((res) => {
-          if (!res.ok) throw new Error("save failed");
-          saveFailuresRef.current = 0;
-          setSaveState("saved");
-        })
-        .catch(() => {
-          // Autosave is best effort; localStorage still has the text.
-          saveFailuresRef.current += 1;
-          setSaveState("offline");
-          if (saveFailuresRef.current === 3) {
-            toast.message(
-              "Sync is struggling. Your draft is safe on this device.",
-            );
-          }
-        });
-    }, 3000);
-    return () => clearTimeout(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [draft, phase, pending?.stepNum]);
-
-  /* ── question generation ───────────────────────────────── */
-  const generateQuestion = useCallback(async () => {
-    if (questionInFlight.current) return;
-    questionInFlight.current = true;
-    stoppedByUserRef.current = false;
-    setStreamedQuestion("");
-    setQuestionError(null);
-    const controller = new AbortController();
-    abortRef.current = controller;
-    try {
-      const { text, headers } = await streamPost(
-        `${sessionUrl}/next-step`,
-        { model: modelRef.current },
-        (full) => setStreamedQuestion(full),
-        controller.signal,
-        { idleTimeoutMs: STREAM_IDLE_MS, onHeaders: readBudgetHeaders },
-      );
-      const stepNum =
-        Number(headers.get("x-step-num")) || completedOf(steps).length + 1;
-      setSteps((prev) => {
-        const without = prev.filter((s) => s.stepNum !== stepNum);
-        return [
-          ...without,
-          {
-            stepNum,
-            question: text,
-            userResponse: null,
-            aiFeedback: null,
-            completedAt: null,
-            revisionCount: 0,
-          },
-        ].sort((a, b) => a.stepNum - b.stepNum);
+        body: JSON.stringify({ model: modelRef.current }),
+        signal: AbortSignal.timeout(60000),
       });
-      setDraft("");
-      lastSavedRef.current = "";
-      setSaveState("idle");
-      setStaleDraft(false);
-      setPhase("answering");
-    } catch (err) {
-      if (err instanceof DOMException && err.name === "AbortError") {
-        if (stoppedByUserRef.current) {
-          setQuestionError("Generation stopped.");
-          setPhase("error-question");
-        }
+      if (res.status === 409) {
+        setPhase("ending");
         return;
       }
-      setQuestionError(
-        err instanceof StreamTimeoutError
-          ? "That took too long."
-          : err instanceof Error
-            ? err.message
-            : "Something went wrong.",
-      );
-      setPhase("error-question");
-    } finally {
-      questionInFlight.current = false;
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sessionUrl]);
-
-  useEffect(() => {
-    if (phase !== "loading-question") return;
-    const t = setTimeout(() => void generateQuestion(), 0);
-    return () => clearTimeout(t);
-  }, [phase, generateQuestion]);
-
-  /* ── stop button: abort whatever main stream is running ── */
-  function stopStreaming() {
-    stoppedByUserRef.current = true;
-    abortRef.current?.abort();
-  }
-
-  /* ── completion call ───────────────────────────────────── */
-  const completeSession = useCallback(async () => {
-    if (completeInFlight.current) return;
-    completeInFlight.current = true;
-    setCompleteError(false);
-    try {
-      const res = await fetch(`${sessionUrl}/complete`, { method: "POST" });
       if (!res.ok) {
         const data = (await res.json().catch(() => null)) as {
           error?: { message?: string };
         } | null;
-        throw new Error(data?.error?.message ?? "Could not complete session.");
+        throw new Error(
+          data?.error?.message ?? "Could not load the next move.",
+        );
       }
       const data = (await res.json()) as {
+        stepNum: number;
+        kind: string | null;
+        question: string;
+      };
+      setMoves((prev) => {
+        if (prev.some((m) => m.stepNum === data.stepNum)) return prev;
+        return [...prev, { ...data, answer: null }];
+      });
+      setDraft("");
+      setPhase("answering");
+    } catch (err) {
+      setErrorMsg(friendlyError(err, "Could not load the next move."));
+      setPhase("error");
+    } finally {
+      moveInFlight.current = false;
+    }
+  }, [url]);
+
+  useEffect(() => {
+    if (phase !== "loading-move") return;
+    const t = setTimeout(() => void loadMove(), 0);
+    return () => clearTimeout(t);
+  }, [phase, loadMove]);
+
+  async function submitAnswer() {
+    if (!pending || draft.trim().length === 0 || busy) return;
+    setBusy(true);
+    const stepNum = pending.stepNum;
+    const answer = draft;
+    try {
+      const res = await fetch(`${url}/answer`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ stepNum, answer }),
+      });
+      if (!res.ok) {
+        const data = (await res.json().catch(() => null)) as {
+          error?: { message?: string };
+        } | null;
+        throw new Error(data?.error?.message ?? "Could not save your answer.");
+      }
+      localStorage.removeItem(draftKey);
+      setMoves((prev) =>
+        prev.map((m) => (m.stepNum === stepNum ? { ...m, answer } : m)),
+      );
+      setDraft("");
+      if (stepNum + 1 >= total) setPhase("ending");
+      else setPhase("loading-move");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Something went wrong.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const endSession = useCallback(async () => {
+    if (endInFlight.current) return;
+    endInFlight.current = true;
+    setPhase("ending");
+    try {
+      const res = await fetch(`${url}/end`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          pasted: pastedRef.current,
+          model: modelRef.current,
+        }),
+        signal: AbortSignal.timeout(60000),
+      });
+      if (!res.ok) {
+        const data = (await res.json().catch(() => null)) as {
+          error?: { message?: string };
+        } | null;
+        throw new Error(data?.error?.message ?? "Could not end the session.");
+      }
+      const data = (await res.json()) as {
+        summary: ProofSummary;
         elapsedSeconds: number;
-        deepSession: boolean;
       };
       setCompletion(data);
       setPhase("done");
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Something went wrong.");
-      setCompleteError(true);
+      setErrorMsg(friendlyError(err, "Could not write your proof."));
+      setPhase("error");
     } finally {
-      completeInFlight.current = false;
+      endInFlight.current = false;
     }
-  }, [sessionUrl]);
+  }, [url]);
 
   useEffect(() => {
-    if (phase !== "completing") return;
-    const t = setTimeout(() => void completeSession(), 0);
+    if (phase !== "ending") return;
+    const t = setTimeout(() => void endSession(), 0);
     return () => clearTimeout(t);
-  }, [phase, completeSession]);
+  }, [phase, endSession]);
 
-  /* ── submit a response for feedback ────────────────────── */
-  async function submitResponse() {
-    if (!pending || draft.trim().length === 0) return;
-    if (submitInFlight.current) return;
-    submitInFlight.current = true;
-    stoppedByUserRef.current = false;
-    const stepNum = pending.stepNum;
-    const response = draft;
-    setSubmittedDraft(response);
-    setPhase("streaming-feedback");
-    setStreamingFeedback("");
-    const controller = new AbortController();
-    abortRef.current = controller;
-    try {
-      const { text } = await streamPost(
-        `${sessionUrl}/feedback`,
-        { stepNum, response, model: modelRef.current },
-        (full) => setStreamingFeedback(full),
-        controller.signal,
-        { idleTimeoutMs: STREAM_IDLE_MS, onHeaders: readBudgetHeaders },
-      );
-      const completedAt = new Date().toISOString();
-      setSteps((prev) =>
-        prev
-          .filter((s) => s.stepNum <= stepNum)
-          .map((s) =>
-            s.stepNum === stepNum
-              ? { ...s, userResponse: response, aiFeedback: text, completedAt }
-              : s,
-          ),
-      );
-      if (typeof window !== "undefined") {
-        localStorage.removeItem(`structura-draft-${session.id}-${stepNum}`);
-      }
-      setDraft("");
-      lastSavedRef.current = "";
-      setSaveState("idle");
-      setStaleDraft(false);
-
-      if (stepNum >= session.totalSteps) {
-        setPhase(confidence.end === undefined ? "gate-end" : "completing");
-      } else if (stepNum === 2 && confidence.mid === undefined) {
-        setPhase("gate-mid");
-      } else {
-        setPhase("loading-question");
-      }
-    } catch (err) {
-      if (err instanceof DOMException && err.name === "AbortError") {
-        if (stoppedByUserRef.current) {
-          setDraft(response);
-          setPhase("answering");
-        }
-        return;
-      }
-      toast.error(
-        err instanceof StreamTimeoutError
-          ? "That took too long. Your answer is still in the editor."
-          : err instanceof Error
-            ? err.message
-            : "Something went wrong.",
-      );
-      setDraft(response);
-      setPhase("answering");
-    } finally {
-      submitInFlight.current = false;
+  function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      void submitAnswer();
     }
   }
 
-  /* ── hints ─────────────────────────────────────────────── */
-  async function requestHint() {
-    if (!pending || hintBusy) return;
-    const stepNum = pending.stepNum;
-    setHintBusy(true);
-    setStreamingHint("");
-    const controller = new AbortController();
-    hintAbortRef.current = controller;
-    try {
-      const { text } = await streamPost(
-        `${sessionUrl}/hint`,
-        { stepNum, draft, model: modelRef.current },
-        (full) => setStreamingHint(full),
-        controller.signal,
-        { idleTimeoutMs: STREAM_IDLE_MS, onHeaders: readBudgetHeaders },
-      );
-      setHintsByStep((prev) => ({
-        ...prev,
-        [stepNum]: [...(prev[stepNum] ?? []), text],
-      }));
-      setHintsUsed((h) => h + 1);
-    } catch (err) {
-      if (err instanceof DOMException && err.name === "AbortError") return;
-      toast.error(
-        err instanceof StreamTimeoutError
-          ? "That took too long. Try asking again."
-          : err instanceof Error
-            ? err.message
-            : "Something went wrong.",
-      );
-    } finally {
-      setStreamingHint(null);
-      setHintBusy(false);
-    }
-  }
-
-  /* ── try again on a completed step ─────────────────────── */
-  async function tryAgain(stepNum: number) {
-    const target = steps.find((s) => s.stepNum === stepNum);
-    if (!target || phase === "streaming-feedback") return;
-    if (tryAgainInFlight.current) return;
-    tryAgainInFlight.current = true;
-    try {
-      // Persist the reset BEFORE touching the UI: deletes later steps,
-      // clears this step's completion, bumps the rewrite counter. Without
-      // this, a reload before resubmitting would resurrect the old answer.
-      const res = await fetch(`${sessionUrl}/reset-step`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ stepNum }),
-      });
-      if (!res.ok) {
-        const data = (await res.json().catch(() => null)) as {
-          error?: { message?: string };
-        } | null;
-        throw new Error(data?.error?.message ?? "Could not reset the step.");
-      }
-      setSteps((prev) =>
-        prev
-          .filter((s) => s.stepNum < stepNum)
-          .concat([
-            {
-              ...target,
-              aiFeedback: null,
-              completedAt: null,
-              revisionCount: target.revisionCount + 1,
-            },
-          ])
-          .sort((a, b) => a.stepNum - b.stepNum),
-      );
-      setRewrites((r) => r + 1);
-      setDraft(target.userResponse ?? "");
-      setStaleDraft((target.userResponse ?? "").length > 0);
-      setPhase("answering");
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Something went wrong.");
-    } finally {
-      tryAgainInFlight.current = false;
-    }
-  }
-
-  /* ── confidence gates ──────────────────────────────────── */
-  async function submitConfidence(point: ConfidencePoint, rating: number) {
-    setGateBusy(true);
-    try {
-      const res = await fetch(`${sessionUrl}/confidence`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ point, rating }),
-      });
-      if (!res.ok) {
-        const data = (await res.json().catch(() => null)) as {
-          error?: { message?: string };
-        } | null;
-        throw new Error(data?.error?.message ?? "Could not save your rating.");
-      }
-      setConfidence((c) => ({ ...c, [point]: rating }));
-      if (point === "end") {
-        setPhase("completing");
-      } else {
-        setPhase(pending ? "answering" : "loading-question");
-      }
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Something went wrong.");
-    } finally {
-      setGateBusy(false);
-    }
-  }
-
-  /* ── render ────────────────────────────────────────────── */
-  const busy = phase === "streaming-feedback" || phase === "loading-question";
-  const stepPillNum = Math.min(
-    completed.length + (phase === "done" ? 0 : 1),
-    session.totalSteps,
-  );
-  const subjectLabel =
-    session.subjectSlug.charAt(0).toUpperCase() + session.subjectSlug.slice(1);
-
-  const activeGate: ConfidencePoint | null =
-    phase === "gate-start"
-      ? "start"
-      : phase === "gate-mid"
-        ? "mid"
-        : phase === "gate-end"
-          ? "end"
-          : null;
+  const progressPct = Math.round((completedCount / total) * 100);
+  const activeNum = pending
+    ? pending.stepNum + 1
+    : Math.min(completedCount + 1, total);
 
   return (
     <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_var(--rightpanel-w)]">
       <div className="flex min-w-0 flex-col gap-5">
-        {/* header */}
         <header className="flex flex-col gap-3">
-          <div>
-            <span className="inline-flex items-center rounded-full bg-[color:var(--lavender-200)]/70 px-3 py-1 font-semibold tracking-[0.18em] text-[color:var(--lavender-800)] text-[var(--text-2xs)] uppercase">
-              {subjectLabel}
+          <div className="flex items-center justify-between gap-3">
+            <span className="inline-flex w-fit items-center rounded-full bg-[color:var(--lavender-200)]/70 px-3 py-1 font-semibold tracking-[0.18em] text-[color:var(--lavender-800)] text-[var(--text-2xs)] uppercase">
+              {intention.label}
             </span>
+            {phase !== "done" && (
+              <ModelSelect
+                value={model}
+                onChange={changeModel}
+                direction="down"
+              />
+            )}
           </div>
           <h1 className="leading-snug font-semibold tracking-[-0.01em] break-words text-[color:var(--color-ink)] text-[var(--text-lg)]">
-            {session.problemText}
+            {session.topic}
           </h1>
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="pill">
-              <span
-                aria-hidden="true"
-                className="h-[6px] w-[6px] rounded-full bg-[color:var(--mint-500)]"
-              />
-              {formatClock(elapsedSeconds)} elapsed
-            </span>
-            <span className="pill">
-              Step {stepPillNum} of {session.totalSteps}
-            </span>
-            {deepSession && (
-              <span
-                title="You stayed with one problem for 45 minutes or more"
-                className="inline-flex items-center rounded-full bg-gradient-to-r from-[color:var(--lavender-200)] to-[color:var(--lavender-300)] px-3 py-1 font-semibold text-[color:var(--lavender-800)] text-[var(--text-2xs)]"
-              >
-                Deep session
-              </span>
-            )}
-            {phase !== "done" && (
-              <span className="ml-auto">
-                <ModelSelect
-                  value={model}
-                  onChange={changeModel}
-                  direction="down"
-                />
-              </span>
-            )}
-          </div>
-          <div className="pt-1">
-            <StepProgress
-              total={session.totalSteps}
-              completed={completed.length}
-              activeStep={phase === "done" ? null : activeStepNum}
-              halfStep={phase === "streaming-feedback"}
-            />
-          </div>
         </header>
 
-        {phase === "done" && (
+        {phase === "done" && completion ? (
           <Completion
             sessionId={session.id}
-            elapsedSeconds={elapsedSeconds}
-            hintsUsed={hintsUsed}
-            rewrites={rewrites}
-            confidenceStart={confidence.start}
-            confidenceEnd={confidence.end}
-            deepSession={deepSession}
+            topic={session.topic}
+            summary={completion.summary}
+            elapsedSeconds={completion.elapsedSeconds}
+            movesAnswered={completedCount}
+            pasted={pasted}
           />
-        )}
-
-        {/* completed step log */}
-        <AnimatePresence initial={false}>
-          {completed.map((step) => (
-            <motion.div
-              key={`step-${step.stepNum}`}
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.25 }}
-            >
-              <StepBlock
-                step={step}
-                hints={hintsByStep[step.stepNum] ?? []}
-                onTryAgain={() => tryAgain(step.stepNum)}
-                disabled={busy || phase === "done" || activeGate !== null}
-              />
-            </motion.div>
-          ))}
-        </AnimatePresence>
-
-        {/* response under review */}
-        {phase === "streaming-feedback" && pending && (
-          <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.25 }}
-            className="flex flex-col gap-3"
-            aria-live="polite"
-            aria-busy={streamingFeedback.length === 0}
-          >
-            <StepBlock
-              step={{
-                stepNum: pending.stepNum,
-                question: pending.question,
-                userResponse: submittedDraft,
-                aiFeedback:
-                  streamingFeedback.length > 0 ? streamingFeedback : null,
-              }}
-              hints={hintsByStep[pending.stepNum] ?? []}
-              onTryAgain={() => undefined}
-              disabled
-            />
-            <div className="flex items-center gap-3">
-              <div className="flex-1">
-                {streamingFeedback.length === 0 && <Thinking />}
+        ) : (
+          <div className="glass flex flex-col gap-5 rounded-[var(--radius-lg)] p-5 ring-1 ring-[color:var(--lavender-300)]">
+            <div className="flex flex-col gap-2">
+              <div className="flex items-center justify-between text-[color:var(--color-ink-subtle)] text-[var(--text-2xs)]">
+                <span className="font-semibold">
+                  Move {activeNum} of {total}
+                  <span className="px-1.5 text-[color:var(--lavender-400)]">
+                    &middot;
+                  </span>
+                  {moveLabel(pending?.kind ?? lastAnswered?.kind ?? null)}
+                </span>
+                {canEnd && phase !== "ending" && (
+                  <button
+                    type="button"
+                    onClick={() => void endSession()}
+                    className="font-semibold text-[color:var(--color-ink-subtle)] transition-colors hover:text-[color:var(--color-ink)]"
+                  >
+                    End session
+                  </button>
+                )}
               </div>
-              <Button variant="ghost" size="sm" onClick={stopStreaming}>
-                Stop
-              </Button>
+              <div className="h-[3px] overflow-hidden rounded-full bg-[color:var(--lavender-300)]/20">
+                <div
+                  className="h-full rounded-full bg-gradient-to-r from-[color:var(--mint-300)] to-[color:var(--lavender-400)] transition-all duration-500"
+                  style={{ width: `${progressPct}%` }}
+                />
+              </div>
             </div>
-          </motion.div>
-        )}
 
-        {/* confidence gates */}
-        {activeGate && (
-          <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.25 }}
-          >
-            <ConfidenceGate
-              prompt={GATE_PROMPTS[activeGate]}
-              busy={gateBusy}
-              onSubmit={(rating) => void submitConfidence(activeGate, rating)}
-            />
-          </motion.div>
-        )}
+            {lastAnswered && phase === "answering" && (
+              <div className="flex items-start gap-3 rounded-[var(--radius-md)] border border-[color:var(--border-soft)] bg-white/45 p-3">
+                <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[color:var(--mint-700)] text-[color:var(--color-bg)]">
+                  <Check />
+                </span>
+                <div className="flex min-w-0 flex-col gap-1">
+                  <span className="font-semibold tracking-widest text-[color:var(--color-ink-subtle)] text-[var(--text-2xs)] uppercase">
+                    {moveLabel(lastAnswered.kind)}
+                  </span>
+                  <p className="line-clamp-3 whitespace-pre-wrap text-[color:var(--color-ink-muted)] text-[var(--text-xs)]">
+                    {lastAnswered.answer}
+                  </p>
+                </div>
+              </div>
+            )}
 
-        {/* active step */}
-        {(phase === "answering" || phase === "loading-question") && (
-          <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.25 }}
-          >
-            <ActiveStep
-              stepNum={activeStepNum}
-              totalSteps={session.totalSteps}
-              question={
-                phase === "loading-question"
-                  ? streamedQuestion
-                  : (pending?.question ?? "")
-              }
-              isStreamingQuestion={phase === "loading-question"}
-              hints={hintsByStep[activeStepNum] ?? []}
-              streamingHint={streamingHint}
-              hintsAllowed={session.scaffoldMode !== "questions_only"}
-              hintBusy={hintBusy}
-              draft={draft}
-              submitDisabled={
-                phase !== "answering" || draft.trim().length === 0 || hintBusy
-              }
-              saveState={saveState}
-              staleDraft={staleDraft}
-              onDismissStale={() => setStaleDraft(false)}
-              onStop={phase === "loading-question" ? stopStreaming : undefined}
-              onDraftChange={(text) => {
-                if (staleDraft && text !== draft) setStaleDraft(false);
-                setDraft(text);
-              }}
-              onHint={() => void requestHint()}
-              onSubmit={() => void submitResponse()}
-            />
-          </motion.div>
-        )}
+            <div aria-live="polite" aria-busy={phase === "loading-move"}>
+              <AnimatePresence mode="wait" initial={false}>
+                {phase === "loading-move" || phase === "ending" ? (
+                  <motion.div
+                    key="loading"
+                    exit={{ opacity: 0 }}
+                    className="flex flex-col gap-2"
+                  >
+                    <Skeleton className="h-4 w-[88%] bg-white/50" />
+                    <Skeleton className="h-4 w-[64%] bg-white/50" />
+                    <p className="pt-1 text-[color:var(--color-ink-subtle)] text-[var(--text-xs)]">
+                      {phase === "ending"
+                        ? "Writing your reasoning proof..."
+                        : "Qualia is thinking of the next move..."}
+                    </p>
+                  </motion.div>
+                ) : phase === "error" ? (
+                  <motion.div
+                    key="error"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    className="flex flex-col items-start gap-3"
+                  >
+                    <p className="text-[color:var(--color-ink-muted)] text-[var(--text-sm)]">
+                      {errorMsg ?? "That did not work."} Your progress is safe.
+                    </p>
+                    <Button
+                      size="sm"
+                      onClick={() =>
+                        setPhase(
+                          completedCount >= total ? "ending" : "loading-move",
+                        )
+                      }
+                    >
+                      Try again
+                    </Button>
+                  </motion.div>
+                ) : (
+                  <motion.div
+                    key={`q-${pending?.stepNum}`}
+                    initial={{ opacity: 0, y: 6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.2 }}
+                  >
+                    <Markdown className="font-medium text-[color:var(--color-ink)] text-[var(--text-base)]">
+                      {pending?.question ?? ""}
+                    </Markdown>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
 
-        {/* question generation failed or was stopped */}
-        {phase === "error-question" && (
-          <div className="glass flex flex-col items-start gap-3 rounded-[var(--radius-lg)] border border-[color:var(--lavender-300)]/60 p-5">
-            <p className="text-[color:var(--color-ink-muted)] text-[var(--text-sm)]">
-              {questionError ?? "Structura could not load the next step."} Your
-              progress is safe.
-            </p>
-            <Button size="sm" onClick={() => setPhase("loading-question")}>
-              Try again
-            </Button>
-          </div>
-        )}
-
-        {/* wrapping up */}
-        {phase === "completing" && (
-          <div className="glass flex flex-col items-start gap-3 rounded-[var(--radius-lg)] p-5">
-            {completeError ? (
+            {phase === "answering" && (
               <>
-                <p className="text-[color:var(--color-ink-muted)] text-[var(--text-sm)]">
-                  Could not finish saving the session.
-                </p>
-                <Button size="sm" onClick={() => void completeSession()}>
-                  Retry
-                </Button>
+                <textarea
+                  value={draft}
+                  onChange={(e) => setDraft(e.target.value)}
+                  onKeyDown={handleKeyDown}
+                  onPaste={() => {
+                    setPasted(true);
+                    pastedRef.current = true;
+                  }}
+                  placeholder="Write your thinking here. Your own words build the path."
+                  aria-label="Your response"
+                  className="min-h-[120px] w-full resize-y rounded-[var(--radius-md)] border border-[color:var(--border-soft)] bg-white/70 p-4 text-[16px] text-[color:var(--color-ink)] placeholder:text-[color:var(--color-ink-subtle)] focus:bg-white focus:ring-2 focus:ring-[color:var(--lavender-400)]/60 focus:outline-none md:text-[var(--text-sm)]"
+                />
+                <div className="flex items-center justify-end">
+                  <Button
+                    size="md"
+                    onClick={() => void submitAnswer()}
+                    loading={busy}
+                    disabled={draft.trim().length === 0}
+                  >
+                    {pending && pending.stepNum + 1 >= total
+                      ? "Submit final response"
+                      : "Submit response"}
+                    <Arrow />
+                  </Button>
+                </div>
               </>
-            ) : (
-              <Thinking label="Wrapping up your session" />
             )}
           </div>
         )}
       </div>
 
-      {/* right companion panel */}
       <div className="hidden lg:block">
-        <SessionPanel
-          scaffoldMode={session.scaffoldMode}
-          elapsedSeconds={elapsedSeconds}
-          stepsDone={completed.length}
-          totalSteps={session.totalSteps}
-          hintsUsed={hintsUsed}
-          rewrites={rewrites}
-          aiUsage={aiUsage}
-        />
+        <div className="flex flex-col gap-4">
+          <motion.div
+            variants={fadeUp}
+            initial="hidden"
+            animate="visible"
+            className="glass flex flex-col gap-3 rounded-[var(--radius-lg)] p-4"
+          >
+            <div className="flex flex-col gap-0.5">
+              <span className="font-semibold text-[color:var(--color-ink)] text-[var(--text-sm)]">
+                Your thinking
+              </span>
+              <span className="text-[color:var(--color-ink-subtle)] text-[var(--text-2xs)]">
+                Grows with each response
+              </span>
+            </div>
+            <ThinkingMap completedCount={completedCount} pasted={pasted} />
+            <div className="flex items-center justify-between border-t border-[color:var(--border-soft)] pt-3 text-[var(--text-2xs)]">
+              <span className="text-[color:var(--color-ink-subtle)]">
+                {completedCount} of {total} responses
+              </span>
+              <span
+                className={cn(
+                  "flex items-center gap-1.5 font-semibold",
+                  pasted
+                    ? "text-[color:var(--lavender-800)]"
+                    : "text-[color:var(--mint-700)]",
+                )}
+              >
+                <span
+                  className={cn(
+                    "h-2 w-2 rounded-full",
+                    pasted
+                      ? "bg-[color:var(--lavender-600)]"
+                      : "animate-pulse bg-[color:var(--mint-500)]",
+                  )}
+                />
+                {pasted ? "Dimmed" : "Growing"}
+              </span>
+            </div>
+          </motion.div>
+
+          <AnimatePresence>
+            {pasted && (
+              <motion.div
+                initial={{ opacity: 0, scale: 0.97 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0 }}
+                className="rounded-[var(--radius-md)] border border-[color:var(--lavender-300)] bg-[color:var(--lavender-100)]/70 p-3 text-center text-[color:var(--lavender-800)] text-[var(--text-2xs)]"
+              >
+                Pasted text dims your map. Honest, first-person reasoning is
+                what this records.
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
       </div>
     </div>
   );
 }
 
-function formatClock(totalSeconds: number): string {
-  const safe = Math.max(0, Math.floor(totalSeconds));
-  const m = Math.floor(safe / 60);
-  const s = safe % 60;
-  return `${m}:${String(s).padStart(2, "0")}`;
+function Check() {
+  return (
+    <svg width="11" height="11" viewBox="0 0 12 12" fill="none" aria-hidden>
+      <path
+        d="M2.5 6.5 5 9l4.5-6"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+function Arrow() {
+  return (
+    <svg
+      width="14"
+      height="14"
+      viewBox="0 0 14 14"
+      fill="none"
+      aria-hidden="true"
+    >
+      <path
+        d="M3 7h8m0 0L7.5 3.5M11 7l-3.5 3.5"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
 }

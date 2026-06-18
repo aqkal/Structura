@@ -2,10 +2,6 @@
 
 import { useEffect, useRef, useState } from "react";
 
-/**
- * Platform detection for keyboard shortcuts: Cmd on Apple devices, Ctrl
- * everywhere else. Safe to call on the server (returns false).
- */
 export function isMacPlatform(): boolean {
   if (typeof navigator === "undefined") return false;
   const platform = navigator.platform ?? "";
@@ -13,10 +9,6 @@ export function isMacPlatform(): boolean {
   return /mac|iphone|ipad|ipod/i.test(platform) || /Mac OS X/i.test(ua);
 }
 
-/**
- * Hydration-safe Mac detection for rendering key labels. Starts false on
- * the server render and settles after mount.
- */
 export function useIsMac(): boolean {
   const [mac, setMac] = useState(false);
   useEffect(() => {
@@ -26,7 +18,6 @@ export function useIsMac(): boolean {
   return mac;
 }
 
-/** True when the event target is an input, textarea, or contenteditable. */
 export function isEditableTarget(target: EventTarget | null): boolean {
   if (!(target instanceof HTMLElement)) return false;
   const tag = target.tagName;
@@ -34,26 +25,15 @@ export function isEditableTarget(target: EventTarget | null): boolean {
 }
 
 type ShortcutHandlers = {
-  /** When false, no listener is registered (signed-out pages). */
   enabled?: boolean;
-  /** Ctrl/Cmd+K. */
+
   onCommandPalette?: () => void;
-  /** Ctrl/Cmd+/. */
+
   onShortcutsDialog?: () => void;
-  /** Ctrl/Cmd+Shift+O. */
+
   onNewChat?: () => void;
 };
 
-/**
- * Global keyboard shortcuts. Register once, in the shell, so listeners
- * never stack across route changes.
- *
- * Every combo here requires the platform modifier (Cmd on Mac, Ctrl
- * elsewhere), so they are deliberately allowed to fire even when focus is
- * in an input, textarea, or contenteditable region: plain typing never
- * carries the modifier. Any future modifier-less shortcut must check
- * `isEditableTarget(e.target)` and bail.
- */
 export function useShortcuts({
   enabled = true,
   onCommandPalette,

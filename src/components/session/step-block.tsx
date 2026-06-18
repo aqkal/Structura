@@ -102,7 +102,7 @@ export function StepBlock({
       {step.aiFeedback !== null && (
         <div className="flex flex-col gap-1 border-l-2 border-[color:var(--lavender-400)] pl-4">
           <div className="font-semibold tracking-widest text-[color:var(--lavender-800)] text-[var(--text-2xs)] uppercase">
-            Structura
+            Qualia
           </div>
           <Markdown className="text-[var(--text-sm)]">
             {step.aiFeedback}

@@ -24,19 +24,10 @@ import { beginUsage, checkDailyBudget, finishUsage } from "@/lib/server/usage";
 
 import { aiBudgetHeaders, persistPartialReplyOnAbort } from "../shared";
 
-/** Regenerations a single user may request per minute. */
+export const maxDuration = 60;
+
 const REGENERATES_PER_MINUTE = 20;
 
-/**
- * POST /api/chat/{id}/regenerate
- *
- * Deletes the chat's last assistant message (verified in a transaction;
- * 409 when the conversation does not end with an assistant reply) and
- * re-streams a fresh reply from the remaining history, persisting the
- * new assistant message exactly like the message route. The last user
- * message's attachments are re-attached so the regenerated reply sees
- * the same input the original one did. Budget gated like any reply.
- */
 const regenerateInput = z.object({});
 
 export async function POST(
@@ -49,14 +40,13 @@ export async function POST(
   const { user } = guard;
 
   const raw: unknown = await req.json().catch(() => null);
-  // The body carries no fields; an empty body is fine too.
+
   const parsed = regenerateInput.safeParse(raw ?? {});
   if (!parsed.success) {
     return apiError(400, "bad_request", "Invalid request body.");
   }
 
-  // Per-user limit, mirroring the message route's bucket style.
-  const limit = checkCustomLimit(
+  const limit = await checkCustomLimit(
     `chatregen:${user.id}`,
     REGENERATES_PER_MINUTE,
   );
@@ -85,11 +75,8 @@ export async function POST(
     );
   }
 
-  // The remaining history the new reply is generated from.
   const remaining = messages.slice(0, -1);
 
-  // Find the student's latest message so its attachments can be passed
-  // to the model again, just like the original send did.
   let lastUserIdx = -1;
   for (let i = remaining.length - 1; i >= 0; i--) {
     if (remaining[i].role === "user") {
@@ -106,8 +93,6 @@ export async function POST(
   }
   const lastUserMessage = remaining[lastUserIdx];
 
-  // Download attachment bytes BEFORE deleting anything, so a storage
-  // hiccup leaves the conversation untouched and the action retryable.
   const files: ChatFilePart[] = [];
   const chatAttachments = await listAttachmentsForChat(id);
   for (const att of chatAttachments) {
@@ -116,8 +101,6 @@ export async function POST(
     files.push({ data, mediaType: att.mediaType });
   }
 
-  // Transactional verify-and-delete: if the conversation moved on since
-  // we read it (a concurrent send or regenerate), nothing is deleted.
   const deleted = await deleteLastAssistantMessage(id, last.id);
   if (!deleted) {
     return apiError(
@@ -167,8 +150,6 @@ export async function POST(
     },
   });
 
-  // Keep client and server in agreement when the student stops the
-  // regenerated reply mid-stream: persist the partial text they kept.
   persistPartialReplyOnAbort({
     textStream: result.textStream,
     signal: req.signal,

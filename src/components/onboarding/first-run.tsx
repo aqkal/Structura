@@ -34,7 +34,7 @@ export function FirstRunPanel() {
           className="leading-relaxed text-[color:var(--color-ink-muted)] text-[var(--text-sm)]"
           style={{ maxWidth: "var(--reading-max)" }}
         >
-          Grab a sample below or bring your own. Structura asks, you think.
+          Grab a sample below or bring your own. Qualia asks, you think.
         </p>
       </motion.header>
 

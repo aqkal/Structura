@@ -78,7 +78,7 @@ export const MessageRow = memo(function MessageRow({
       className="group flex flex-col gap-1.5"
     >
       <div className="font-semibold tracking-[0.18em] text-[color:var(--lavender-800)] text-[var(--text-2xs)] uppercase">
-        Structura
+        Qualia
       </div>
       <Markdown className="text-[color:var(--color-ink)] text-[var(--text-sm)]">
         {message.content}

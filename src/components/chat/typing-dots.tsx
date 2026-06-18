@@ -3,7 +3,7 @@
 import { motion } from "framer-motion";
 
 export function TypingDots({
-  label = "Structura is thinking",
+  label = "Qualia is thinking",
 }: {
   label?: string;
 }) {

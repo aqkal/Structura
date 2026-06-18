@@ -23,7 +23,7 @@ export default async function SignUpPage({ searchParams }: Props) {
             Create your account
           </div>
           <p className="mt-2 leading-relaxed text-[color:var(--color-ink-muted)] text-[var(--text-sm)]">
-            Join Structura. You&apos;ll get your own private record of how you
+            Join Qualia. You&apos;ll get your own private record of how you
             think, not just what you got right.
           </p>
         </div>

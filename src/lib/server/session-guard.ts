@@ -12,14 +12,6 @@ export type GuardOk = {
 
 export type GuardFail = { ok: false; response: NextResponse };
 
-/**
- * Auth + ownership gate for session-scoped route handlers.
- *
- * - No signed-in user: 401 unauthorized.
- * - Malformed uuid, missing session, or a session owned by someone
- *   else: 404 not_found. We never answer 403, so callers cannot probe
- *   whether a given session id exists.
- */
 export async function guardSession(
   sessionId: string,
 ): Promise<GuardOk | GuardFail> {

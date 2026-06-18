@@ -4,27 +4,10 @@ import { asc, count, eq, inArray } from "drizzle-orm";
 import { db, schema } from "@/lib/db";
 import { createClient } from "@/lib/supabase/server";
 
-/**
- * GDPR self-serve helpers: assemble a complete export of everything we
- * store about a user, and the destructive pieces of account deletion.
- *
- * Export reads use direct Drizzle queries (not the session/chat list
- * helpers) so the shape is explicit and complete, and signed file URLs are
- * created with the user's OWN Supabase session so Storage RLS stays the
- * authority on what they can reach.
- *
- * Deletion helpers take the service-role client as an argument; the only
- * place allowed to construct it is the account delete route (see
- * src/lib/supabase/admin.ts).
- */
-
-/** Mirrors CHAT_UPLOADS_BUCKET in src/lib/server/attachments.ts. */
 const CHAT_UPLOADS_BUCKET = "chat-uploads";
 
-/** Signed download links in the export stay valid for one hour. */
 const SIGNED_URL_TTL_SECONDS = 60 * 60;
 
-/** Page size for storage listing and batch size for storage removal. */
 const STORAGE_PAGE_SIZE = 100;
 
 function groupBy<T>(rows: T[], key: (row: T) => string): Map<string, T[]> {
@@ -42,18 +25,11 @@ function groupBy<T>(rows: T[], key: (row: T) => string): Map<string, T[]> {
 }
 
 export type AccountExportResult = {
-  /** The full export document, ready to serialize. */
   data: Record<string, unknown>;
-  /** Counts only, safe for audit logging. */
+
   counts: Record<string, number>;
 };
 
-/**
- * Everything Structura stores about one user, as a single JSON-serializable
- * document. Dates serialize to ISO strings via JSON.stringify. Attachment
- * entries always include the storage path; signedUrl is null when signing
- * failed so the export still completes.
- */
 export async function buildAccountExport(
   userId: string,
 ): Promise<AccountExportResult> {
@@ -136,9 +112,6 @@ export async function buildAccountExport(
     .groupBy(schema.usageEvents.kind);
   const totalAiCalls = usageByKind.reduce((sum, row) => sum + row.calls, 0);
 
-  // Short-lived signed URLs, created with the user's own session so Storage
-  // RLS scopes access. A failed signature leaves signedUrl null; the path
-  // is still included so the export is complete.
   const supabase = await createClient();
   const signedUrls = new Map<string, string | null>();
   await Promise.all(
@@ -167,7 +140,7 @@ export async function buildAccountExport(
     exportedAt: new Date().toISOString(),
     notes: {
       scope:
-        "Everything Structura stores about you: profile, guided sessions, chats, uploaded file metadata, and AI usage counts.",
+        "Everything Qualia stores about you: profile, guided sessions, chats, uploaded file metadata, and AI usage counts.",
       attachments:
         "Each attachment includes a signed download link that expires one hour after this export was created. The storagePath identifies the file if the link has expired.",
     },
@@ -226,12 +199,6 @@ export async function buildAccountExport(
   return { data, counts };
 }
 
-/**
- * Walk the user's folder in the chat-uploads bucket and collect every file
- * path. Storage list() is not recursive and paths are nested as
- * "{userId}/{chatId}/{file}", so we breadth-first walk folders (entries
- * without an id are folders) and paginate each level.
- */
 async function collectUserStoragePaths(
   admin: SupabaseClient,
   userId: string,
@@ -252,7 +219,6 @@ async function collectUserStoragePaths(
           sortBy: { column: "name", order: "asc" },
         });
       if (error) {
-        // Name only; the caller logs errorName, never message text.
         throw new Error("storage_list_failed");
       }
 
@@ -260,7 +226,6 @@ async function collectUserStoragePaths(
       for (const entry of entries) {
         const fullPath = `${folder}/${entry.name}`;
         if (!entry.id) {
-          // Folders come back without an object id.
           folders.push(fullPath);
         } else {
           files.push(fullPath);
@@ -275,12 +240,6 @@ async function collectUserStoragePaths(
   return files;
 }
 
-/**
- * Remove every storage object under the user's folder. Idempotent: an
- * already-empty (or never-used) folder removes zero objects and succeeds,
- * so a retried deletion sails through this stage. Returns how many objects
- * were removed.
- */
 export async function purgeUserStorage(
   admin: SupabaseClient,
   userId: string,
@@ -302,12 +261,6 @@ export async function purgeUserStorage(
   return removed;
 }
 
-/**
- * Delete the user's row; every relational row (sessions, steps, hints,
- * confidence ratings, retrospectives, chats, messages, attachment rows,
- * scheduled tasks, usage events) goes with it via FK cascades. Idempotent:
- * returns false when the row was already gone.
- */
 export async function deleteUserRow(userId: string): Promise<boolean> {
   const deleted = await db
     .delete(schema.users)

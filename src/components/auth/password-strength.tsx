@@ -4,13 +4,8 @@ import { AnimatePresence, motion } from "framer-motion";
 
 import { durations, easeOutCurve } from "@/lib/motion";
 
-const UNFILLED = "rgba(212, 197, 237, 0.3)"; /* lavender-300 at 30% */
-const LEVEL_COLORS = [
-  "#d4c5ed" /* lavender-300 */,
-  "#b8a0d8" /* lavender-400 */,
-  "#8fdcb0" /* mint-300 */,
-  "#3a9a6a" /* mint-500 */,
-];
+const UNFILLED = "rgba(212, 197, 237, 0.3)";
+const LEVEL_COLORS = ["#d4c5ed", "#b8a0d8", "#8fdcb0", "#3a9a6a"];
 const LABELS = ["Weak", "Okay", "Good", "Strong"];
 
 export function scorePassword(password: string): number {

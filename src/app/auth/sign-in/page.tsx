@@ -20,7 +20,7 @@ export default async function SignInPage({ searchParams }: Props) {
       <AuthCard>
         <div className="mb-6">
           <div className="leading-tight font-semibold tracking-[-0.02em] text-[color:var(--mint-900)] text-[var(--text-2xl)]">
-            Welcome to Structura
+            Welcome to Qualia
           </div>
           <p className="mt-2 leading-relaxed text-[color:var(--color-ink-muted)] text-[var(--text-sm)]">
             Sign in to start reasoning. We&apos;ll never solve a problem for

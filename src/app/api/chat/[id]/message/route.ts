@@ -28,23 +28,10 @@ import { findInjectionMarker } from "@/lib/server/validators";
 
 import { aiBudgetHeaders, persistPartialReplyOnAbort } from "../shared";
 
-/** Messages a single user may send per minute, on top of the per-IP cap. */
+export const maxDuration = 60;
+
 const MESSAGES_PER_MINUTE = 20;
 
-/**
- * POST /api/chat/{id}/message
- *
- * Appends the student's message (optionally with image/PDF attachments),
- * then streams the assistant reply as text/plain. On finish the assistant
- * message is persisted, and if this was the first user message a title is
- * generated from it (only while the chat still holds the default title).
- * Budget gated: 429 ai_budget_exhausted when the daily cap is reached.
- *
- * Attachments are uploaded ahead of time via /upload, which returns ids.
- * Those ids are validated and linked to the just-created user message, and
- * their bytes are downloaded and passed to the model as file parts on the
- * final user turn.
- */
 const messageInput = z.object({
   content: z.string().trim().min(1).max(8000),
   model: z.string().optional(),
@@ -73,14 +60,13 @@ export async function POST(
 
   const marker = findInjectionMarker(content);
   if (marker) {
-    // The chat prompt is injection resistant, so we log and proceed.
     logEvent("injection_marker", { route: "chat-message", chatId: id, marker });
   }
 
-  // Per-user message rate limit, independent of the per-IP proxy cap so
-  // users on a shared network are not lumped together and a single account
-  // cannot flood message creation.
-  const msgLimit = checkCustomLimit(`chatmsg:${user.id}`, MESSAGES_PER_MINUTE);
+  const msgLimit = await checkCustomLimit(
+    `chatmsg:${user.id}`,
+    MESSAGES_PER_MINUTE,
+  );
   if (!msgLimit.allowed) {
     return apiError(429, "message_rate_limited", "Slow down a moment.", {
       retryAfterSeconds: msgLimit.retryAfterSeconds,
@@ -98,15 +84,10 @@ export async function POST(
 
   const modelId = resolveChatModel(model);
 
-  // Resolve the requested attachments (chat-scoped) BEFORE appending, so a
-  // bad attachment id never leaves a half-written message behind. Only the
-  // attachments that belong to this chat are honored.
   const requestedIds = attachmentIds ?? [];
   const atts =
     requestedIds.length > 0 ? await getAttachmentsByIds(requestedIds, id) : [];
 
-  // Cap the cumulative bytes sent to the model per turn so a conversation
-  // cannot pull tens of MB of egress on every message.
   const totalAttachmentBytes = atts.reduce((sum, a) => sum + a.sizeBytes, 0);
   if (totalAttachmentBytes > MAX_MESSAGE_ATTACHMENT_BYTES) {
     return apiError(
@@ -122,15 +103,10 @@ export async function POST(
     files.push({ data, mediaType: att.mediaType });
   }
 
-  // Capture the prior conversation BEFORE appending the new message so we
-  // can tell whether this is the very first user turn in the chat.
   const prior = await getChatMessages(id);
   const priorUserCount = prior.filter((m) => m.role === "user").length;
   const isFirstUserMessage = priorUserCount === 0;
 
-  // appendMessage returns the new row id atomically, so attachments link to
-  // exactly this message even under concurrent sends. Link immediately (not
-  // in onFinish) so a stream failure still leaves them correctly associated.
   const userMessageId = await appendMessage(id, "user", content);
   if (atts.length > 0) {
     await linkAttachmentsToMessage(
@@ -184,10 +160,6 @@ export async function POST(
     },
   });
 
-  // When the student stops the reply mid-stream, the client keeps the
-  // partial text and marks the message done. Persist that same partial
-  // text here so client and server agree after a Stop. The reserved
-  // usage row keeps counting toward the budget (tokens stay unknown).
   persistPartialReplyOnAbort({
     textStream: result.textStream,
     signal: req.signal,

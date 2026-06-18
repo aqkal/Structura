@@ -1,17 +1,3 @@
-/**
- * Client-safe fetch streaming helper.
- *
- * Posts JSON (or nothing) to an API route, reads the streamed text body
- * chunk by chunk, and reports the accumulated text on every chunk so the
- * caller can render it live.
- *
- * Supports an optional idle timeout: if no bytes arrive for
- * `idleTimeoutMs`, the request is aborted and `StreamTimeoutError` is
- * thrown so callers can show an in-place retry instead of hanging forever.
- * A caller-initiated abort (the user pressing Stop) still surfaces as a
- * regular AbortError.
- */
-
 export class StreamTimeoutError extends Error {
   constructor() {
     super("That took too long. Please try again.");
@@ -20,9 +6,8 @@ export class StreamTimeoutError extends Error {
 }
 
 export type StreamPostOptions = {
-  /** Abort if no bytes arrive for this many milliseconds. */
   idleTimeoutMs?: number;
-  /** Called as soon as response headers are available, before streaming. */
+
   onHeaders?: (headers: Headers) => void;
 };
 
@@ -47,8 +32,6 @@ export async function streamPost(
     }, idleMs);
   };
 
-  // Chain the caller's signal into the internal controller (AbortSignal.any
-  // is too new for the supported browser floor).
   const onCallerAbort = () => controller?.abort();
   if (controller && signal) {
     if (signal.aborted) controller.abort();
@@ -70,9 +53,7 @@ export async function streamPost(
       try {
         const data = (await res.json()) as { error?: { message?: string } };
         if (data?.error?.message) message = data.error.message;
-      } catch {
-        // Non-JSON error body, keep the generic message.
-      }
+      } catch {}
       throw new Error(message);
     }
 
