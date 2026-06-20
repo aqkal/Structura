@@ -106,6 +106,7 @@ export function ChatView({ initial, userName }: ChatViewProps) {
     null,
   );
   const [budgetExhausted, setBudgetExhausted] = useState(false);
+  const [showSurvey, setShowSurvey] = useState(false);
 
   const abortRef = useRef<AbortController | null>(null);
   const streamInFlightRef = useRef(false);
@@ -130,6 +131,14 @@ export function ChatView({ initial, userName }: ChatViewProps) {
   const chatIdRef = useRef<string | null>(initial.chatId);
 
   const streaming = streamMode !== null;
+  const completedExchanges = Math.floor(
+  messages.filter((m) => m.role === "assistant").length
+);
+useEffect(() => {
+  if (completedExchanges === 7 && !showSurvey) {
+    setShowSurvey(true);
+  }
+}, [completedExchanges]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -1004,6 +1013,29 @@ export function ChatView({ initial, userName }: ChatViewProps) {
           </AnimatePresence>
 
           <AnimatePresence>
+            {showSurvey && (
+  <motion.div
+    variants={fadeUp}
+    initial="hidden"
+    animate="visible"
+    exit={{ opacity: 0, transition: { duration: 0.15 } }}
+    className="glass mb-2 flex flex-col gap-3 rounded-[var(--radius-lg)] p-4"
+  >
+    <div className="flex items-center justify-between">
+      <p className="font-medium text-[color:var(--color-ink)] text-[var(--text-sm)]">
+        Quick question while you're thinking
+      </p>
+      <button
+        type="button"
+        onClick={() => setShowSurvey(false)}
+        className="text-[color:var(--color-ink-subtle)] text-[var(--text-2xs)] hover:text-[color:var(--color-ink)]"
+      >
+        Dismiss
+      </button>
+    </div>
+    <TallyEmbed />
+  </motion.div>
+)}
             {budgetExhausted && (
               <motion.div
                 variants={fadeUp}
@@ -1188,5 +1220,45 @@ export function ChatView({ initial, userName }: ChatViewProps) {
         </div>
       </div>
     </div>
+  );
+}
+function TallyEmbed() {
+  useEffect(() => {
+    const w = "https://tally.so/widgets/embed.js";
+    const load = () => {
+      if (typeof (window as any).Tally !== "undefined") {
+        (window as any).Tally.loadEmbeds();
+      } else {
+        document
+          .querySelectorAll("iframe[data-tally-src]:not([src])")
+          .forEach((e: any) => {
+            e.src = e.dataset.tallySrc;
+          });
+      }
+    };
+    if (typeof (window as any).Tally !== "undefined") {
+      load();
+    } else if (!document.querySelector(`script[src="${w}"]`)) {
+      const s = document.createElement("script");
+      s.src = w;
+      s.onload = load;
+      s.onerror = load;
+      document.body.appendChild(s);
+    } else {
+      load();
+    }
+  }, []);
+
+  return (
+    <iframe
+      data-tally-src="https://tally.so/embed/lbgAON?alignLeft=1&hideTitle=1&transparentBackground=1&dynamicHeight=1"
+      loading="lazy"
+      width="100%"
+      height="200"
+      frameBorder={0}
+      marginHeight={0}
+      marginWidth={0}
+      title="Some quick questions"
+    />
   );
 }
