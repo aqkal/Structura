@@ -1208,7 +1208,6 @@ useEffect(() => {
               </motion.button>
             </div>
             <div className="flex items-center justify-between gap-2 px-1">
-              <ModelSelect value={model} onChange={persistModel} />
               {showBudgetLine && budget ? (
                 <span className="text-[color:var(--color-ink-subtle)] text-[var(--text-2xs)]">
                   AI calls today: {Math.min(budget.used, budget.budget)} of{" "}
