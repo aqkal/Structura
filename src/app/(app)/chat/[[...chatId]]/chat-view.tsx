@@ -138,7 +138,7 @@ useEffect(() => {
   if (completedExchanges === 7 && !showSurvey) {
     setShowSurvey(true);
   }
-}, [completedExchanges]);
+}, [completedExchanges, showSurvey]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -1023,7 +1023,7 @@ useEffect(() => {
   >
     <div className="flex items-center justify-between">
       <p className="font-medium text-[color:var(--color-ink)] text-[var(--text-sm)]">
-        Quick question while you're thinking
+        Quick questions while you&apos;re thinking
       </p>
       <button
         type="button"
@@ -1223,31 +1223,32 @@ useEffect(() => {
   );
 }
 function TallyEmbed() {
-  useEffect(() => {
-    const w = "https://tally.so/widgets/embed.js";
-    const load = () => {
-      if (typeof (window as any).Tally !== "undefined") {
-        (window as any).Tally.loadEmbeds();
-      } else {
-        document
-          .querySelectorAll("iframe[data-tally-src]:not([src])")
-          .forEach((e: any) => {
-            e.src = e.dataset.tallySrc;
-          });
-      }
-    };
-    if (typeof (window as any).Tally !== "undefined") {
-      load();
-    } else if (!document.querySelector(`script[src="${w}"]`)) {
-      const s = document.createElement("script");
-      s.src = w;
-      s.onload = load;
-      s.onerror = load;
-      document.body.appendChild(s);
+useEffect(() => {
+  const w = "https://tally.so/widgets/embed.js";
+  const tallyWindow = window as typeof window & { Tally?: { loadEmbeds: () => void } };
+  const load = () => {
+    if (tallyWindow.Tally) {
+      tallyWindow.Tally.loadEmbeds();
     } else {
-      load();
+      document
+        .querySelectorAll<HTMLIFrameElement>("iframe[data-tally-src]:not([src])")
+        .forEach((e) => {
+          e.src = e.dataset.tallySrc ?? "";
+        });
     }
-  }, []);
+  };
+  if (tallyWindow.Tally) {
+    load();
+  } else if (!document.querySelector(`script[src="${w}"]`)) {
+    const s = document.createElement("script");
+    s.src = w;
+    s.onload = load;
+    s.onerror = load;
+    document.body.appendChild(s);
+  } else {
+    load();
+  }
+}, []);
 
   return (
     <iframe
