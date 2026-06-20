@@ -65,7 +65,7 @@
   --space-12: 56px;
 
   --sidebar-w: clamp(220px, 16vw, 320px);
-  --rightpanel-w: clamp(200px, 14vw, 280px);
+  --rightpanel-w: clamp(260px, 20vw, 360px);
   --content-max: clamp(640px, 72vw, 1240px);
   --reading-max: 68ch;
 

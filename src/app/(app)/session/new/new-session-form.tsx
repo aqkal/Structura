@@ -49,9 +49,9 @@ export function NewSessionForm({
     <form ref={formRef} action={formAction} className="flex flex-col gap-6">
       <input type="hidden" name="intention" value={intention} />
 
-      <div className="flex flex-col gap-2">
+      <div className="flex flex-col gap-8">
         <span className={labelClass}>How do you want to approach it?</span>
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
           {INTENTION_LIST.map((it) => {
             const selected = it.key === intention;
             return (
@@ -64,7 +64,7 @@ export function NewSessionForm({
                 whileTap={{ scale: 0.985 }}
                 transition={springSnappy}
                 className={cn(
-                  "relative flex flex-col items-start gap-1.5 rounded-[var(--radius-md)] border p-4 pr-9 text-left transition-colors duration-150",
+                  "relative flex flex-col items-start gap-2 rounded-[var(--radius-md)] border p-5 pr-10 text-left transition-colors duration-150",
                   selected
                     ? "border-transparent"
                     : "border-[color:var(--border-soft)] bg-white/40 hover:bg-white/60",
