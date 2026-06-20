@@ -22,7 +22,7 @@ export default async function NewSessionPage({
     <div className="mx-auto w-full max-w-[720px]">
       <HeroReveal>
         <HeroItem variant="fadeUp">
-          <div className="glass flex flex-col gap-6 rounded-[var(--radius-lg)] p-[var(--space-6)] sm:p-[var(--space-8)]">
+          <div className="glass flex flex-col gap-8 rounded-[var(--radius-lg)] p-[var(--space-8)] sm:p-[var(--space-10)]">
             <header className="flex flex-col gap-3">
               <div className="font-semibold tracking-[0.18em] text-[color:var(--color-ink-subtle)] text-[var(--text-2xs)] uppercase">
                 New problem
