@@ -26,6 +26,12 @@ const MODES: Mode[] = [
 export function ModeSwitch() {
   const pathname = usePathname() ?? "";
   const [pendingHref, setPendingHref] = useState<string | null>(null);
+  const [trackedPath, setTrackedPath] = useState(pathname);
+
+  if (pathname !== trackedPath) {
+    setTrackedPath(pathname);
+    setPendingHref(null);
+  }
 
   return (
     <div

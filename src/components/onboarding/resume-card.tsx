@@ -25,7 +25,6 @@ export function ResumeCard({
   return (
     <motion.div
       variants={fadeUp}
-      whileHover={{ y: -2 }}
       transition={springSnappy}
       className="glass flex flex-col gap-3 rounded-[var(--radius-lg)] p-[var(--space-6)]"
       style={{ maxWidth: "var(--reading-max)" }}

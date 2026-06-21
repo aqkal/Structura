@@ -32,7 +32,7 @@ export const CHAT_MODELS = [
 
 export type ChatModelId = (typeof CHAT_MODELS)[number]["id"];
 
-export const DEFAULT_CHAT_MODEL: ChatModelId = "gemini-2.5-flash";
+export const DEFAULT_CHAT_MODEL: ChatModelId = "gemini-3.1-flash-lite-preview";
 
 export function isChatModelId(value: unknown): value is ChatModelId {
   return typeof value === "string" && CHAT_MODELS.some((m) => m.id === value);

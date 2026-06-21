@@ -4,8 +4,8 @@ import { motion } from "framer-motion";
 
 import { LinkButton } from "@/components/ui/button";
 import { Confetti } from "@/components/session/confetti";
-import { formatDuration } from "@/components/session/session-panel";
 import { ProofCard } from "@/components/session/proof-card";
+import { GuidedFeedbackEmbed } from "@/components/feedback/guided-feedback-embed";
 import type { ProofSummary } from "@/lib/server/ai/guided";
 import { fadeUp, staggerContainer } from "@/lib/motion";
 
@@ -13,14 +13,12 @@ export function Completion({
   sessionId,
   topic,
   summary,
-  elapsedSeconds,
   movesAnswered,
   pasted,
 }: {
   sessionId: string;
   topic: string;
   summary: ProofSummary;
-  elapsedSeconds: number;
   movesAnswered: number;
   pasted: boolean;
 }) {
@@ -41,8 +39,7 @@ export function Completion({
           You reasoned it through.
         </h2>
         <p className="text-[color:var(--color-ink-subtle)] text-[var(--text-xs)]">
-          {movesAnswered} responses &middot; {formatDuration(elapsedSeconds)}{" "}
-          &middot; saved to your portfolio
+          {movesAnswered} responses &middot; saved to your portfolio
         </p>
       </motion.div>
 
@@ -61,6 +58,10 @@ export function Completion({
         <LinkButton href="/session/new" variant="ghost">
           Start another
         </LinkButton>
+      </motion.div>
+
+      <motion.div variants={fadeUp} className="w-full">
+        <GuidedFeedbackEmbed sessionId={sessionId} />
       </motion.div>
     </motion.div>
   );

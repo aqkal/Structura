@@ -4,7 +4,7 @@ import { HowItWorks } from "@/components/onboarding/how-it-works";
 import { ResumeCard } from "@/components/onboarding/resume-card";
 import { SampleProblemCards } from "@/components/onboarding/sample-problems";
 import { ShellContent } from "@/components/shell/app-shell";
-import { SessionSidebar, timeAgo } from "@/components/shell/session-sidebar";
+import { timeAgo } from "@/components/shell/session-sidebar";
 import { StatsPanel } from "@/components/shell/stats-panel";
 import { LinkButton } from "@/components/ui/button";
 import { getCurrentUser } from "@/lib/auth";
@@ -31,9 +31,19 @@ export default async function HomePage() {
 
   return (
     <ShellContent
-      sidebar={<SessionSidebar userId={user.id} />}
-      rightPanel={
-        showStats ? <StatsPanel stats={stats} variant="panel" /> : undefined
+      sidebar={
+        <div className="flex min-h-full flex-col">
+          <div className="mt-auto pt-[var(--space-4)]">
+            <LinkButton
+              href="/session/new"
+              variant="secondary"
+              size="sm"
+              className="w-full"
+            >
+              Start new session
+            </LinkButton>
+          </div>
+        </div>
       }
     >
       <HeroReveal className="flex flex-col gap-10" stagger={0.08}>
@@ -54,12 +64,6 @@ export default async function HomePage() {
           </header>
         </HeroItem>
 
-        {showStats && (
-          <HeroItem variant="fadeUp" className="lg:hidden">
-            <StatsPanel stats={stats} variant="row" />
-          </HeroItem>
-        )}
-
         {firstRun ? (
           <FirstRunPanel />
         ) : activeSession ? (
@@ -78,6 +82,12 @@ export default async function HomePage() {
                 <Arrow />
               </LinkButton>
             </div>
+          </HeroItem>
+        )}
+
+        {showStats && (
+          <HeroItem variant="fadeUp">
+            <StatsPanel stats={stats} variant="panel" />
           </HeroItem>
         )}
       </HeroReveal>

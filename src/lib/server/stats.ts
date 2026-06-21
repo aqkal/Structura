@@ -15,8 +15,6 @@ export async function getUserStats(userId: string): Promise<StatsData> {
       id: schema.sessions.id,
       startedAt: schema.sessions.startedAt,
       endedAt: schema.sessions.endedAt,
-      elapsedSeconds: schema.sessions.elapsedSeconds,
-      hintsUsed: schema.sessions.hintsUsed,
     })
     .from(schema.sessions)
     .where(
@@ -26,11 +24,6 @@ export async function getUserStats(userId: string): Promise<StatsData> {
       ),
     )
     .orderBy(desc(schema.sessions.startedAt));
-
-  const totalMinutes = Math.round(
-    completed.reduce((sum, s) => sum + s.elapsedSeconds, 0) / 60,
-  );
-  const hintsUsed = completed.reduce((sum, s) => sum + s.hintsUsed, 0);
 
   const activeDays = new Set(
     completed.map((s) => utcDayKey(s.endedAt ?? s.startedAt)),
@@ -101,8 +94,6 @@ export async function getUserStats(userId: string): Promise<StatsData> {
   return {
     currentStreak,
     completedSessions: completed.length,
-    totalMinutes,
-    hintsUsed,
     avgConfidenceDelta,
     recentDeltas: deltasNewestFirst.slice(0, 10).reverse(),
     weekActivity,

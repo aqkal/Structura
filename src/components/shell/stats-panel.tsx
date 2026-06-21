@@ -14,8 +14,6 @@ import { cn } from "@/lib/utils";
 export type StatsData = {
   currentStreak: number;
   completedSessions: number;
-  totalMinutes: number;
-  hintsUsed: number;
   avgConfidenceDelta: number | null;
   recentDeltas: number[];
   weekActivity: boolean[];
@@ -79,11 +77,9 @@ export function StatsPanel({
         <span className={eyebrowClass}>Totals</span>
         <dl className="flex flex-col gap-2">
           <TotalRow
-            label="Sessions completed"
+            label="Guided sessions completed"
             value={stats.completedSessions}
           />
-          <TotalRow label="Minutes practiced" value={stats.totalMinutes} />
-          <TotalRow label="Hints used" value={stats.hintsUsed} />
         </dl>
       </motion.section>
 

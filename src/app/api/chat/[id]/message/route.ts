@@ -26,6 +26,8 @@ import { checkCustomLimit } from "@/lib/server/rate-limit";
 import { beginUsage, checkDailyBudget, finishUsage } from "@/lib/server/usage";
 import { findInjectionMarker } from "@/lib/server/validators";
 
+import { streamWithFallback } from "@/lib/server/ai/fallback";
+
 import { aiBudgetHeaders, persistPartialReplyOnAbort } from "../shared";
 
 export const maxDuration = 60;
@@ -132,36 +134,56 @@ export async function POST(
   });
 
   let finished = false;
-  const result = streamChatReply(history, {
-    model: modelId,
-    signal: req.signal,
-    onFinish: async (info) => {
-      finished = true;
-      try {
-        await appendMessage(id, "assistant", info.text);
-        if (isFirstUserMessage) {
-          const title = await generateChatTitle(content, modelId);
-          await setChatTitleIfDefault(id, title);
-        }
-        await finishUsage(usageId, info.inputTokens, info.outputTokens);
-        logEvent("chat_reply", {
-          chatId: id,
-          model: modelId,
-          inputTokens: info.inputTokens,
-          outputTokens: info.outputTokens,
-        });
-      } catch (err) {
-        logEvent("persist_failed", {
-          route: "chat-message",
-          chatId: id,
-          errorName: errorName(err),
-        });
-      }
-    },
-  });
+
+  let streamed: {
+    stream: ReadableStream<string>;
+    modelUsed: string;
+    switched: boolean;
+  };
+  try {
+    streamed = await streamWithFallback(modelId, (m) =>
+      streamChatReply(history, {
+        model: m,
+        signal: req.signal,
+        onFinish: async (info) => {
+          finished = true;
+          try {
+            await appendMessage(id, "assistant", info.text);
+            if (isFirstUserMessage) {
+              const title = await generateChatTitle(content, info.model);
+              await setChatTitleIfDefault(id, title);
+            }
+            await finishUsage(usageId, info.inputTokens, info.outputTokens);
+            logEvent("chat_reply", {
+              chatId: id,
+              model: info.model,
+              inputTokens: info.inputTokens,
+              outputTokens: info.outputTokens,
+            });
+          } catch (err) {
+            logEvent("persist_failed", {
+              route: "chat-message",
+              chatId: id,
+              errorName: errorName(err),
+            });
+          }
+        },
+      }),
+    );
+  } catch (err) {
+    logEvent("chat_failed", {
+      route: "chat-message",
+      chatId: id,
+      errorName: errorName(err),
+    });
+    return apiError(502, "ai_failed", "Could not generate a reply.");
+  }
+
+  const { stream, modelUsed, switched } = streamed;
+  const [bodyStream, persistStream] = stream.tee();
 
   persistPartialReplyOnAbort({
-    textStream: result.textStream,
+    textStream: persistStream,
     signal: req.signal,
     route: "chat-message",
     chatId: id,
@@ -169,13 +191,18 @@ export async function POST(
     persist: async (partialText) => {
       await appendMessage(id, "assistant", partialText);
       if (isFirstUserMessage) {
-        const title = await generateChatTitle(content, modelId);
+        const title = await generateChatTitle(content, modelUsed);
         await setChatTitleIfDefault(id, title);
       }
     },
   });
 
-  return result.toTextStreamResponse({
-    headers: aiBudgetHeaders(used + 1, budget),
+  return new Response(bodyStream.pipeThrough(new TextEncoderStream()), {
+    headers: {
+      "content-type": "text/plain; charset=utf-8",
+      ...aiBudgetHeaders(used + 1, budget),
+      "x-ai-model": modelUsed,
+      "x-ai-fallback": switched ? "1" : "0",
+    },
   });
 }

@@ -34,7 +34,7 @@ export const CHAT_MODELS: { id: ChatModelId; label: string; blurb: string }[] =
     },
   ];
 
-export const DEFAULT_CHAT_MODEL: ChatModelId = "gemini-2.5-flash";
+export const DEFAULT_CHAT_MODEL: ChatModelId = "gemini-3.1-flash-lite-preview";
 
 export function isChatModelId(value: unknown): value is ChatModelId {
   return typeof value === "string" && CHAT_MODELS.some((m) => m.id === value);

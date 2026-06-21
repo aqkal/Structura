@@ -17,18 +17,6 @@ const modeMeta: Record<ScaffoldMode, { name: string; desc: string }> = {
   },
 };
 
-export function formatDuration(totalSeconds: number): string {
-  const safe = Math.max(0, Math.floor(totalSeconds));
-  if (safe >= 3600) {
-    const h = Math.floor(safe / 3600);
-    const m = Math.floor((safe % 3600) / 60);
-    return `${h}:${String(m).padStart(2, "0")}`;
-  }
-  const m = Math.floor(safe / 60);
-  const s = safe % 60;
-  return `${m}:${String(s).padStart(2, "0")}`;
-}
-
 function Label({ children }: { children: React.ReactNode }) {
   return (
     <div className="font-semibold tracking-[0.18em] text-[color:var(--color-ink-subtle)] text-[var(--text-2xs)] uppercase">
@@ -52,18 +40,14 @@ function StatRow({ label, value }: { label: string; value: string }) {
 
 export function SessionPanel({
   scaffoldMode,
-  elapsedSeconds,
   stepsDone,
   totalSteps,
-  hintsUsed,
   rewrites,
   aiUsage = null,
 }: {
   scaffoldMode: ScaffoldMode;
-  elapsedSeconds: number;
   stepsDone: number;
   totalSteps: number;
-  hintsUsed: number;
   rewrites: number;
   aiUsage?: { used: number; budget: number } | null;
 }) {
@@ -92,9 +76,7 @@ export function SessionPanel({
       <div className="glass flex flex-col gap-2 rounded-[var(--radius-lg)] p-4">
         <Label>This session</Label>
         <div className="flex flex-col">
-          <StatRow label="Time" value={formatDuration(elapsedSeconds)} />
           <StatRow label="Steps done" value={`${stepsDone}/${totalSteps}`} />
-          <StatRow label="Hints used" value={String(hintsUsed)} />
           <StatRow label="Rewrites" value={String(rewrites)} />
         </div>
       </div>

@@ -6,14 +6,16 @@ function contentSecurityPolicy(): string {
   const supabase = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
   const supabaseWss = supabase.replace(/^https:/, "wss:");
   const connect = ["'self'", supabase, supabaseWss].filter(Boolean).join(" ");
+  // tally.so is allowed for the beta feedback embed (see remove.md).
   const scriptSrc = isProd
-    ? "script-src 'self' 'unsafe-inline'"
-    : "script-src 'self' 'unsafe-inline' 'unsafe-eval'";
+    ? "script-src 'self' 'unsafe-inline' https://tally.so"
+    : "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://tally.so";
   return [
     "default-src 'self'",
     "base-uri 'self'",
     "object-src 'none'",
     "frame-ancestors 'none'",
+    "frame-src 'self' https://tally.so",
     "form-action 'self'",
     "img-src 'self' data: blob:",
     "font-src 'self' data:",

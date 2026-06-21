@@ -11,11 +11,7 @@ import { ModelSelect } from "@/components/chat/model-select";
 import { Markdown } from "@/components/render/markdown";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import {
-  DEFAULT_CHAT_MODEL,
-  isChatModelId,
-  type ChatModelId,
-} from "@/lib/chat-models";
+import { DEFAULT_CHAT_MODEL, type ChatModelId } from "@/lib/chat-models";
 import {
   INTENTIONS,
   MIN_MOVES_BEFORE_END,
@@ -99,16 +95,6 @@ export function SessionView({ initial }: { initial: SessionInitial }) {
 
   const [model, setModel] = useState<ChatModelId>(DEFAULT_CHAT_MODEL);
   const modelRef = useRef<ChatModelId>(DEFAULT_CHAT_MODEL);
-  useEffect(() => {
-    const t = setTimeout(() => {
-      const saved = localStorage.getItem("structura-session-model");
-      if (isChatModelId(saved)) {
-        modelRef.current = saved;
-        setModel(saved);
-      }
-    }, 0);
-    return () => clearTimeout(t);
-  }, []);
   function changeModel(id: ChatModelId) {
     modelRef.current = id;
     setModel(id);
@@ -307,7 +293,6 @@ export function SessionView({ initial }: { initial: SessionInitial }) {
             sessionId={session.id}
             topic={session.topic}
             summary={completion.summary}
-            elapsedSeconds={completion.elapsedSeconds}
             movesAnswered={completedCount}
             pasted={pasted}
           />

@@ -99,7 +99,7 @@ export function ActiveStep({
                 {question}
               </Markdown>
               {isStreamingQuestion && question.length > 0 && (
-                <span className="stream-caret" aria-hidden="true" />
+                <span className="stream-dot" aria-hidden="true" />
               )}
             </motion.div>
           )}
@@ -134,7 +134,7 @@ export function ActiveStep({
                         {hint}
                       </Markdown>
                       {isStreamingThis && (
-                        <span className="stream-caret" aria-hidden="true" />
+                        <span className="stream-dot" aria-hidden="true" />
                       )}
                     </>
                   ) : (

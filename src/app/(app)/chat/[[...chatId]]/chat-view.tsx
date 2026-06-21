@@ -10,14 +10,10 @@ import { emitChatCreated, emitChatTitled } from "@/components/chat/chat-events";
 import type { ChatAttachment, ChatMessage } from "@/components/chat/chat-types";
 import { MessageRow } from "@/components/chat/message-row";
 import { ModelSelect } from "@/components/chat/model-select";
-import { TypingDots } from "@/components/chat/typing-dots";
-import { Markdown } from "@/components/render/markdown";
+import { ChatFeedbackPrompt } from "@/components/feedback/chat-feedback-prompt";
+import { recordChatPromptAndMaybeAsk } from "@/components/feedback/feedback-config";
 import { Button } from "@/components/ui/button";
-import {
-  DEFAULT_CHAT_MODEL,
-  isChatModelId,
-  type ChatModelId,
-} from "@/lib/chat-models";
+import { DEFAULT_CHAT_MODEL, type ChatModelId } from "@/lib/chat-models";
 import {
   durations,
   easeOutCurve,
@@ -106,6 +102,7 @@ export function ChatView({ initial, userName }: ChatViewProps) {
     null,
   );
   const [budgetExhausted, setBudgetExhausted] = useState(false);
+  const [chatFeedbackOpen, setChatFeedbackOpen] = useState(false);
 
   const abortRef = useRef<AbortController | null>(null);
   const streamInFlightRef = useRef(false);
@@ -130,14 +127,6 @@ export function ChatView({ initial, userName }: ChatViewProps) {
   const chatIdRef = useRef<string | null>(initial.chatId);
 
   const streaming = streamMode !== null;
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const saved = window.localStorage.getItem(MODEL_STORAGE_KEY);
-    if (!isChatModelId(saved)) return;
-    const t = setTimeout(() => setModel(saved), 0);
-    return () => clearTimeout(t);
-  }, []);
 
   useEffect(() => {
     const urls = objectUrlsRef.current;
@@ -165,19 +154,40 @@ export function ChatView({ initial, userName }: ChatViewProps) {
     return () => scroller.removeEventListener("scroll", onScroll);
   }, []);
 
+  // On open, jump straight to the latest message.
   useEffect(() => {
-    if (pinnedRef.current) {
-      const scroller = scrollerRef.current;
-      if (scroller) {
-        scroller.scrollTo({ top: scroller.scrollHeight, behavior: "auto" });
-      } else {
-        bottomRef.current?.scrollIntoView({ block: "end" });
-      }
-      return;
+    const scroller = scrollerRef.current;
+    if (scroller) {
+      scroller.scrollTo({ top: scroller.scrollHeight });
+    } else {
+      bottomRef.current?.scrollIntoView({ block: "end" });
     }
-    const t = setTimeout(() => setShowJump(true), 0);
+  }, []);
+
+  // Scroll to the bottom only when the user sends a prompt (the last message is
+  // theirs). We intentionally do NOT follow the streaming response as it grows.
+  useEffect(() => {
+    if (messages[messages.length - 1]?.role !== "user") return;
+    const scroller = scrollerRef.current;
+    if (scroller) {
+      scroller.scrollTo({ top: scroller.scrollHeight, behavior: "auto" });
+    } else {
+      bottomRef.current?.scrollIntoView({ block: "end" });
+    }
+  }, [messages]);
+
+  // Show the "jump to latest" button when content sits below the fold (e.g.
+  // while the answer streams in), without auto-scrolling to it.
+  useEffect(() => {
+    const scroller = scrollerRef.current;
+    if (!scroller) return;
+    const t = setTimeout(() => {
+      const nearBottom =
+        scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight < 80;
+      setShowJump(!nearBottom);
+    }, 0);
     return () => clearTimeout(t);
-  }, [messages, streamingText]);
+  }, [streamingText, messages]);
 
   useEffect(() => {
     if (!pinnedRef.current) return;
@@ -210,6 +220,16 @@ export function ChatView({ initial, userName }: ChatViewProps) {
     const total = Number(headers.get("x-ai-budget"));
     if (Number.isFinite(used) && Number.isFinite(total) && total > 0) {
       setBudget({ used, budget: total });
+    }
+    if (headers.get("x-ai-fallback") === "1") {
+      const model = headers.get("x-ai-model") ?? "";
+      const label =
+        {
+          "gemini-2.5-flash": "Gemini 2.5 Flash",
+          "gemini-2.5-flash-lite": "Gemini 2.5 Flash Lite",
+          "gemini-2.5-pro": "Gemini 2.5 Pro",
+        }[model] ?? model;
+      toast(`Switched to ${label} (rate limit)`);
     }
   }, []);
 
@@ -531,6 +551,9 @@ export function ChatView({ initial, userName }: ChatViewProps) {
       for (const p of sentFiles) revokeUrl(p.previewUrl);
 
       maybeRefreshFreshChat();
+      if (recordChatPromptAndMaybeAsk()) {
+        setChatFeedbackOpen(true);
+      }
     } catch (err) {
       if (err instanceof DOMException && err.name === "AbortError") {
         finalizePartial();
@@ -904,48 +927,20 @@ export function ChatView({ initial, userName }: ChatViewProps) {
                   onEditLastUser={editLastUser}
                 />
               ))}
+              {streaming && (
+                <MessageRow
+                  key={`m-${messages.length}`}
+                  message={{ role: "assistant", content: streamingText }}
+                  chatId={chatId}
+                  isLastAssistant={false}
+                  isLastUser={false}
+                  busy
+                  streaming
+                  onRegenerate={regenerate}
+                  onEditLastUser={editLastUser}
+                />
+              )}
             </AnimatePresence>
-
-            {streaming && (
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ duration: durations.base, ease: easeOutCurve }}
-                className="flex flex-col gap-1.5"
-                aria-live="polite"
-                aria-busy="true"
-              >
-                <div className="font-semibold tracking-[0.18em] text-[color:var(--lavender-800)] text-[var(--text-2xs)] uppercase">
-                  Qualia
-                </div>
-                <AnimatePresence mode="wait" initial={false}>
-                  {streamingText.length > 0 ? (
-                    <motion.div
-                      key="text"
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      exit={{ opacity: 0, transition: { duration: 0.1 } }}
-                      transition={{ duration: durations.fast }}
-                    >
-                      <Markdown className="text-[color:var(--color-ink)] text-[var(--text-sm)]">
-                        {streamingText}
-                      </Markdown>
-                      <span className="stream-caret" aria-hidden="true" />
-                    </motion.div>
-                  ) : (
-                    <motion.div
-                      key="dots"
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      exit={{ opacity: 0, transition: { duration: 0.12 } }}
-                      transition={{ duration: durations.fast }}
-                    >
-                      <TypingDots />
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-              </motion.div>
-            )}
 
             <AnimatePresence>
               {timedOut && !streaming && (
@@ -975,7 +970,7 @@ export function ChatView({ initial, userName }: ChatViewProps) {
         )}
       </div>
 
-      <div className="sticky bottom-0 mt-5 pb-2">
+      <div className="sticky bottom-0 z-10 mt-5 pb-2">
         <div className="relative mx-auto w-full max-w-[var(--reading-max)]">
           <AnimatePresence>
             {showJump && (
@@ -992,7 +987,7 @@ export function ChatView({ initial, userName }: ChatViewProps) {
                   transition: { duration: 0.15 },
                 }}
                 transition={{ duration: durations.base, ease: easeOutCurve }}
-                className="glass absolute -top-14 left-1/2 z-20 inline-flex h-10 items-center gap-2 rounded-[var(--radius-pill)] px-4 font-medium text-[color:var(--color-ink-muted)] text-[var(--text-xs)] transition-colors hover:text-[color:var(--color-ink)]"
+                className="glass-strong absolute -top-14 left-1/2 z-20 inline-flex h-10 items-center gap-2 rounded-[var(--radius-pill)] px-4 font-medium text-[color:var(--color-ink-muted)] text-[var(--text-xs)] transition-colors hover:text-[color:var(--color-ink)]"
               >
                 <span
                   aria-hidden="true"
@@ -1058,7 +1053,7 @@ export function ChatView({ initial, userName }: ChatViewProps) {
             </div>
           )}
 
-          <div className="glass flex flex-col gap-2 rounded-[var(--radius-lg)] p-2">
+          <div className="glass-frost flex flex-col gap-2 rounded-[var(--radius-lg)] p-2">
             <div className="flex items-end gap-2">
               <input
                 ref={fileInputRef}
@@ -1187,6 +1182,11 @@ export function ChatView({ initial, userName }: ChatViewProps) {
           </div>
         </div>
       </div>
+
+      <ChatFeedbackPrompt
+        open={chatFeedbackOpen}
+        onClose={() => setChatFeedbackOpen(false)}
+      />
     </div>
   );
 }

@@ -119,7 +119,7 @@ export function ChatSidebarItem({
           layoutId="chat-active-pill"
           transition={springSoft}
           aria-hidden="true"
-          className="absolute inset-0 rounded-[var(--radius-sm)] bg-[color:var(--surface-1)] ring-1 ring-[color:var(--lavender-300)]"
+          className="absolute inset-0 rounded-[var(--radius-sm)] bg-[color:var(--surface-1)]"
         />
       )}
 

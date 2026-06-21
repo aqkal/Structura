@@ -7,8 +7,8 @@ import { easeOutCurve } from "@/lib/motion";
 export function ContentTransition({ children }: { children: React.ReactNode }) {
   return (
     <motion.div
-      initial={{ opacity: 0, y: 4 }}
-      animate={{ opacity: 1, y: 0 }}
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
       transition={{ duration: 0.18, ease: easeOutCurve }}
     >
       {children}

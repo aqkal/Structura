@@ -6,6 +6,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { AttachmentChip } from "@/components/chat/attachment-chip";
 import type { ChatMessage } from "@/components/chat/chat-types";
 import { Markdown } from "@/components/render/markdown";
+import { TypingDots } from "@/components/chat/typing-dots";
 import { springSnappy } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 
@@ -15,6 +16,7 @@ type MessageRowProps = {
   isLastAssistant: boolean;
   isLastUser: boolean;
   busy: boolean;
+  streaming?: boolean;
   onRegenerate: () => void;
   onEditLastUser: () => void;
 };
@@ -25,6 +27,7 @@ export const MessageRow = memo(function MessageRow({
   isLastAssistant,
   isLastUser,
   busy,
+  streaming = false,
   onRegenerate,
   onEditLastUser,
 }: MessageRowProps) {
@@ -76,23 +79,40 @@ export const MessageRow = memo(function MessageRow({
       initial={false}
       exit={{ opacity: 0, transition: { duration: 0.15 } }}
       className="group flex flex-col gap-1.5"
+      aria-live={streaming ? "polite" : undefined}
+      aria-busy={streaming ? true : undefined}
     >
       <div className="font-semibold tracking-[0.18em] text-[color:var(--lavender-800)] text-[var(--text-2xs)] uppercase">
         Qualia
       </div>
-      <Markdown className="text-[color:var(--color-ink)] text-[var(--text-sm)]">
-        {message.content}
-      </Markdown>
-      <ActionRow align="start">
-        <CopyButton content={message.content} />
-        {isLastAssistant && !busy ? (
-          <ActionButton
-            label="Regenerate response"
-            onClick={onRegenerate}
-            icon={<RefreshIcon />}
-          />
-        ) : null}
-      </ActionRow>
+      {streaming && message.content.length === 0 ? (
+        <TypingDots />
+      ) : (
+        <>
+          <Markdown className="text-[color:var(--color-ink)] text-[var(--text-sm)]">
+            {message.content}
+          </Markdown>
+          {streaming ? (
+            <div
+              aria-hidden="true"
+              className="flex h-8 items-center [@media(hover:none)]:h-11"
+            >
+              <span className="stream-dot" />
+            </div>
+          ) : (
+            <ActionRow align="start">
+              <CopyButton content={message.content} />
+              {isLastAssistant && !busy ? (
+                <ActionButton
+                  label="Regenerate response"
+                  onClick={onRegenerate}
+                  icon={<RefreshIcon />}
+                />
+              ) : null}
+            </ActionRow>
+          )}
+        </>
+      )}
     </motion.div>
   );
 });

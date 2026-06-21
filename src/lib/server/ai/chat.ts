@@ -1,4 +1,4 @@
-import { generateText, streamText } from "ai";
+import { generateText, smoothStream, streamText } from "ai";
 
 import {
   DEFAULT_CHAT_MODEL,
@@ -76,6 +76,7 @@ export function streamChatReply(
     temperature: 0.7,
     maxOutputTokens: 700,
     providerOptions: NO_THINKING,
+    experimental_transform: smoothStream({ chunking: "word" }),
     abortSignal: opts?.signal,
     onFinish: async ({ text, usage }) => {
       if (!opts?.onFinish) return;

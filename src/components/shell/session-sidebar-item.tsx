@@ -22,6 +22,7 @@ export function SessionSidebarItem({ session }: { session: SidebarSession }) {
   const [hidden, setHidden] = useState(false);
   const router = useRouter();
   const pathname = usePathname();
+  const isActive = pathname === `/session/${session.id}`;
 
   async function remove() {
     if (deleting) return;
@@ -60,7 +61,13 @@ export function SessionSidebarItem({ session }: { session: SidebarSession }) {
         >
           <Link
             href={`/session/${session.id}`}
-            className="flex items-start gap-2.5 rounded-[var(--radius-sm)] px-2 py-2 pr-8 transition-colors hover:bg-[color:var(--surface-2)]"
+            aria-current={isActive ? "page" : undefined}
+            className={cn(
+              "flex items-start gap-2.5 rounded-[var(--radius-sm)] px-2 py-2 pr-8 transition-colors",
+              isActive
+                ? "bg-[color:var(--surface-1)]"
+                : "hover:bg-[color:var(--surface-2)]",
+            )}
           >
             <StatusDot status={session.status} />
             <span className="flex min-w-0 flex-col gap-0.5">

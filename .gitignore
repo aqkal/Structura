@@ -61,6 +61,7 @@ next-env.d.ts
 HANDOFF.md
 master-context.md
 whats-left.md
+remove.md
 
 # agent tooling (local)
 .claude/
