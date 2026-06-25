@@ -8,8 +8,8 @@ function contentSecurityPolicy(): string {
   const connect = ["'self'", supabase, supabaseWss].filter(Boolean).join(" ");
   // tally.so is allowed for the beta feedback embed (see remove.md).
   const scriptSrc = isProd
-    ? "script-src 'self' 'unsafe-inline' https://tally.so"
-    : "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://tally.so";
+    ? "script-src 'self' 'unsafe-inline' https://tally.so https://va.vercel-scripts.com"
+    : "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://tally.so https://va.vercel-scripts.com";
   return [
     "default-src 'self'",
     "base-uri 'self'",

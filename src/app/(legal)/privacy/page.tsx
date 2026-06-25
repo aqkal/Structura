@@ -99,7 +99,8 @@ export default function PrivacyPage() {
           <A href="https://policies.google.com/privacy">Google Privacy</A>.
         </li>
         <li>
-          <strong>Vercel</strong> (application hosting). See{" "}
+          <strong>Vercel</strong> (application hosting and privacy-friendly,
+          cookieless analytics). See{" "}
           <A href="https://vercel.com/legal/privacy-policy">Vercel Privacy</A>.
         </li>
         <li>
@@ -118,8 +119,10 @@ export default function PrivacyPage() {
         (managed by our authentication provider). We use your browser&apos;s
         local storage for preferences such as theme, draft answers, and to
         remember whether you have seen certain prompts. We do not use
-        advertising or cross-site tracking cookies. If you open an embedded
-        feedback form, that third party may set its own cookies.
+        advertising or cross-site tracking cookies. We use Vercel Analytics to
+        count page views and visits; it is cookieless and does not track you
+        across sites. If you open an embedded feedback form, that third party
+        may set its own cookies.
       </P>
 
       <H2>7. Data retention</H2>

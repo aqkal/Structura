@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import { Toaster } from "sonner";
+import { Analytics } from "@vercel/analytics/next";
 import { MotionProvider } from "@/components/motion/motion-provider";
 import "katex/dist/katex.min.css";
 import "./globals.css";
@@ -45,6 +46,7 @@ export default function RootLayout({
         />
         <MotionProvider>{children}</MotionProvider>
         <Toaster position="top-center" richColors />
+        <Analytics />
       </body>
     </html>
   );
