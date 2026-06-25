@@ -239,6 +239,27 @@ function AvatarMenu({ user }: { user: NavUser }) {
               <ThemeToggle compact className="w-full" />
             </div>
 
+            <div
+              className="mx-1.5 mt-1 border-t border-[color:var(--border-ink)]"
+              aria-hidden="true"
+            />
+            <div className="flex items-center gap-4 px-3 py-2 text-[color:var(--color-ink-subtle)] text-[var(--text-2xs)]">
+              <Link
+                href="/privacy"
+                onClick={() => setOpen(false)}
+                className="hover:text-[color:var(--color-ink)]"
+              >
+                Privacy
+              </Link>
+              <Link
+                href="/terms"
+                onClick={() => setOpen(false)}
+                className="hover:text-[color:var(--color-ink)]"
+              >
+                Terms
+              </Link>
+            </div>
+
             <form action="/auth/sign-out" method="post">
               <button type="submit" role="menuitem" className={menuItemClass}>
                 Sign out
